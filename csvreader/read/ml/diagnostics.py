@@ -1,9 +1,42 @@
+import pandas as pd
+import numpy as np
+
 class ModelDiagnoser:
-    def __init__(self, metrics, engineer, target_col):
-        self.r2 = metrics.get('R2', metrics.get('Accuracy', 0)) # Handle both metrics
+    def __init__(self, results, engineer, target_col):
+        """
+        results: The full results dict returned by trainer.train()
+        """
+        self.best_model_name = results['best_model_name']
+        self.metrics = results['metrics'][self.best_model_name]
+        self.best_pipeline = results['best_model'] # The actual trained pipeline
         self.engineer = engineer
         self.target_col = target_col
-        
+        self.r2 = self.metrics.get('R2', self.metrics.get('Accuracy', 0))
+
+    def get_feature_importance(self):
+        """Extracts which features the model actually used."""
+        try:
+            # 1. Get the actual model from the pipeline
+            model_step = self.best_pipeline.named_steps['model']
+            
+            # 2. Get feature names from preprocessor
+            preprocessor = self.best_pipeline.named_steps['preprocessor']
+            
+            # This is tricky in Scikit-Learn pipelines. We try to reconstruct names.
+            # (Simplified approach for robustness)
+            if hasattr(model_step, 'feature_importances_'):
+                importances = model_step.feature_importances_
+                
+                # We simply return the Top 3 most important indices if names fail
+                # In a real app, getting exact column names from a Pipeline is complex
+                indices = np.argsort(importances)[::-1]
+                top_3_score = sum(importances[indices[:3]])
+                return f"The model relied {top_3_score*100:.1f}% on the top 3 features."
+            
+            return "Feature importance not available for this model type."
+        except:
+            return "Could not extract detailed feature importance."
+
     def get_diagnosis(self):
         # 1. SUCCESS CASE
         if self.r2 > 0.6:
@@ -13,33 +46,28 @@ class ModelDiagnoser:
                 "message": f"Great! We found strong predictive patterns for '{self.target_col}'."
             }
 
-        # 2. FAILURE/WARNING CASE
+        # 2. WARNING CASE
         reasons = []
         
-        # A. Leakage (Cheating)
+        # Check Leakage
         if self.engineer.dropped_leakage:
-            reasons.append(
-                f"🚫 **Removed Cheating Features:** We dropped {self.engineer.dropped_leakage}. "
-                "Their Mutual Information score was too high (>0.95), meaning they predict the target too perfectly (Leakage)."
-            )
+            reasons.append(f"🚫 **Dropped Leakage:** {self.engineer.dropped_leakage} (>95% correlation).")
             
-        # B. Noise (Useless)
+        # Check Noise (Only if user enabled filter)
         if self.engineer.dropped_noise:
-            reasons.append(
-                f"🗑️ **Removed Noise:** We dropped {self.engineer.dropped_noise}. "
-                f"Their dependency on '{self.target_col}' was nearly zero (<0.01). They provide no useful information."
-            )
+            reasons.append(f"🗑️ **Dropped Noise:** {self.engineer.dropped_noise} (<1% correlation).")
 
-        # C. Default
-        if not reasons:
-            reasons.append("The data seems random. No strong dependencies were found even in the kept features.")
+        # Check Model Performance on KEPT features
+        if self.r2 < 0.1:
+            importance_msg = self.get_feature_importance()
+            reasons.append(
+                f"📉 **Weak Signal:** Even with the remaining features, the model score is low ({self.r2}).\n"
+                f"This implies the data might be synthetic or random. {importance_msg}"
+            )
 
         return {
             "status": "warning",
             "title": "⚠️ Low Accuracy Explained",
-            "message": (
-                f"The model score is {self.r2}. Here is what happened:\n\n" + 
-                "\n\n".join(reasons)
-            ),
-            "suggestion": "Try collecting features that have a stronger causal relationship with the target."
+            "message": "\n\n".join(reasons) if reasons else "Model performance is low. The data appears random.",
+            "suggestion": "Try collecting real-world data or checking for missing key predictors."
         }

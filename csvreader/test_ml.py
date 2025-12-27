@@ -6,7 +6,7 @@ import sys
 # Setup Path
 data_path = os.path.join(os.path.dirname(__file__), './dataset/Global_Cybersecurity_Threats_2015-2024.csv')
 df = pd.read_csv(data_path)
-target = 'Financial Loss (in Million $)'
+target = 'Defense Mechanism Used'
 
 try:
     from read.ml.utils import DataInspector
@@ -54,7 +54,7 @@ def run_test(df, target_col):
 
         # 4. Diagnostics
         print("🩺 Diagnosing...")
-        diagnoser = ModelDiagnoser(metrics, engineer, target_col)
+        diagnoser = ModelDiagnoser(results, engineer, target_col)
         report = diagnoser.get_diagnosis()
         print(f"   -> Report: {report['title']}")
         print(f"   -> Message: {report['message']}")
