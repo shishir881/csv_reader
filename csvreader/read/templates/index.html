@@ -1,35 +1,24 @@
 {% extends "layout.html" %}
-
-{% block title %}Home | CSV Reader{% endblock %}
+{% load static %}
+{% block title %}Home - CSV Reader{% endblock %}
 
 {% block content %}
-<div class="flex flex-col items-center justify-center text-center">
+<div class="text-center">
+    <h1 class="text-4xl font-bold mb-4 dark:text-gray-100">Upload Your CSV File</h1>
+    <p class="text-gray-600 dark:text-gray-300 mb-6">Easily upload a CSV and visualize data.</p>
 
-    <!-- Hero Section -->
-    <h2 class="text-4xl font-bold mb-3">Upload & Read CSV Instantly</h2>
-    <p class="text-gray-500 mb-10 max-w-xl">
-        Easily upload any CSV file and view data in seconds — perfect for quick analysis and ML dataset preview.
-    </p>
+    <!-- File Upload Box -->
+    <div class="flex justify-center">
+        <form method="post" enctype="multipart/form-data" class="bg-white dark:bg-gray-800 p-8 rounded shadow-md w-1/2">
+            {% csrf_token %}
+            <input type="file" name="file" class="block w-full mb-4 border rounded dark:border-gray-600 dark:bg-gray-700">
+            <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">
+                Upload CSV
+            </button>
+        </form>
+    </div>
 
-    <!-- Background image / hero image -->
-    <img src="https://cdn-icons-png.flaticon.com/512/2965/2965456.png"
-         alt="CSV Illustration"
-         class="w-56 opacity-90 mb-8">
-
-    <!-- Upload Box -->
-    <form action="/read/" method="POST" enctype="multipart/form-data"
-          class="w-full max-w-md bg-white shadow-md rounded p-6 border">
-        {% csrf_token %}
-        <label class="block font-medium text-left mb-2">Upload CSV File</label>
-        
-        <input type="file" name="csv_file"
-               class="w-full border rounded px-3 py-2 mb-6 cursor-pointer focus:ring focus:border-blue-400">
-
-        <button type="submit"
-                class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold">
-            Upload & Read File
-        </button>
-    </form>
-
+    <!-- Illustration -->
+    {% comment %} <img src="{% static 'images/csv.jpeg' %}" class="mx-auto mt-8 opacity-80"> {% endcomment %}
 </div>
 {% endblock %}

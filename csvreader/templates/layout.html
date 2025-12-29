@@ -1,29 +1,135 @@
 {% load static tailwind_tags %}
+{% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}CSV Reader{% endblock %}</title>
-
-    <!-- Load Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
     {% tailwind_css %}
+    <title>{% block title %}CSV Reader{% endblock %}</title>
 </head>
-<body class="bg-gray-50 text-gray-800">
-    <header class="w-full py-4 shadow bg-white">
-        <div class="container mx-auto flex justify-between items-center px-6">
-            <h1 class="text-xl font-semibold">CSV Reader</h1>
-            <div class="space-x-3">
-                <a href="/login/" class="px-4 py-2 text-sm border rounded hover:bg-gray-100">Login</a>
-                <a href="/signup/" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Sign Up</a>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 transition duration-300">
+
+    <!-- NAVBAR -->
+    <nav class="bg-white dark:bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <a href="/" class="text-xl font-semibold dark:text-gray-200">CSV Reader</a>
+
+            <div class="space-x-6 hidden md:flex">
+                <a href="/read" class="hover:text-blue-500 dark:hover:text-blue-400">Home</a>
+                <a href="#" class="hover:text-blue-500 dark:hover:text-blue-400">Link</a>
+
+                <!-- Dropdown -->
+                <div class="relative group inline-block">
+                    <button class="hover:text-blue-500 dark:hover:text-blue-400">Dropdown</button>
+                    <ul class="absolute bg-white dark:bg-gray-700 shadow-md rounded hidden group-hover:block">
+                        <li><a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600">Action</a></li>
+                        <li><hr class="border-gray-300 dark:border-gray-500"></li>
+                        <li><a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600">More</a></li>
+                    </ul>
+                </div>
             </div>
-        </div>
-    </header>
 
-    <main class="container mx-auto px-6 py-12">
+            <!-- Search -->
+            <form class="hidden md:flex">
+                <input class="border rounded px-2 py-1 dark:border-gray-500 dark:bg-gray-700" type="search" placeholder="Search">
+            </form>
+
+            <!-- Login / Signup -->
+            <div class="flex items-center space-x-4">
+                
+                {% if user.is_authenticated %}
+                    <div class="relative group inline-block">
+                        <button id="userMenuButton" class="flex items-center space-x-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 focus:outline-none">
+                            <span class="font-semibold">{{ user.username }}</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+
+                        <div id="userDropdown" class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1 hidden z-50">
+                            
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Profile</a>
+                            
+                            <form method="post" action="{% url 'logout' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-gray-700">
+                                    Logout
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                {% else %}
+                    <a href="{% url 'login' %}" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-blue-600">
+                        Login
+                    </a>
+                    <a href="{% url 'signup' %}" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition">
+                        Sign Up
+                    </a>
+
+                {% endif %}
+                
+                <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                    🌙
+                </button>
+            </div>
+
+            <!-- DARK MODE BUTTON -->
+    </nav>
+
+    <div class="container mx-auto py-10">
         {% block content %}{% endblock %}
-    </main>
+    </div>
 
+    <script>
+        // Toggle Dark Mode with persistence
+        const html = document.documentElement;
+        const themeToggle = document.getElementById('themeToggle');
+
+        // Load theme from localStorage
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            html.classList.add('dark');
+        }
+
+        // Set initial button icon
+        themeToggle.textContent = html.classList.contains('dark') ? '☀️' : '🌙';
+
+        // Toggle function
+        themeToggle.onclick = () => {
+            html.classList.toggle('dark');
+            const isDark = html.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            themeToggle.textContent = isDark ? '☀️' : '🌙';
+        };
+
+        // Dropdown hover delay
+        let dropdownTimeout;
+        const userMenuButton = document.getElementById('userMenuButton');
+        const userDropdown = document.getElementById('userDropdown');
+
+        if (userMenuButton && userDropdown) {
+            userMenuButton.addEventListener('mouseenter', () => {
+                clearTimeout(dropdownTimeout);
+                userDropdown.classList.remove('hidden');
+            });
+
+            userMenuButton.addEventListener('mouseleave', () => {
+                dropdownTimeout = setTimeout(() => {
+                    userDropdown.classList.add('hidden');
+                }, 300); // 300ms delay before hiding
+            });
+
+            userDropdown.addEventListener('mouseenter', () => {
+                clearTimeout(dropdownTimeout);
+            });
+
+            userDropdown.addEventListener('mouseleave', () => {
+                dropdownTimeout = setTimeout(() => {
+                    userDropdown.classList.add('hidden');
+                }, 300);
+            });
+        }
+    </script>
 </body>
 </html>
-
