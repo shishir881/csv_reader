@@ -1,0 +1,174 @@
+{% extends 'layout.html' %}
+
+{% block title %}Analysis Result{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8">
+    
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center border border-gray-100 dark:border-gray-700">
+        <h2 class="text-2xl font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Model Performance</h2>
+        
+        {% with score=results.metrics|first %} 
+        <div class="mt-4 flex justify-center items-center">
+             <div class="w-40 h-40 rounded-full flex items-center justify-center border-8 
+                {% if diagnosis.status == 'success' %}border-green-500 text-green-600 dark:text-green-400{% else %}border-yellow-500 text-yellow-600 dark:text-yellow-400{% endif %}">
+                
+                <div class="text-center">
+                    <span class="block text-4xl font-bold">
+                        {% for key, val in score.items %}
+                            {% if key == 'R2' or key == 'Accuracy' %}
+                                {{ val }}
+                            {% endif %}
+                        {% endfor %}
+                    </span>
+                    <span class="text-sm font-medium uppercase">Score</span>
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+
+        <div class="mt-6 max-w-2xl mx-auto">
+            <h3 class="text-xl font-bold {% if diagnosis.status == 'success' %}text-green-600{% else %}text-yellow-600{% endif %}">
+                {{ diagnosis.title }}
+            </h3>
+            <p class="text-gray-600 dark:text-gray-300 mt-2 whitespace-pre-line">{{ diagnosis.message }}</p>
+            
+            {% if diagnosis.suggestion %}
+            <div class="mt-4 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-lg text-sm inline-block">
+                💡 <strong>Tip:</strong> {{ diagnosis.suggestion }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <button onclick="showSection('visualize')" class="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition flex items-center space-x-4">
+            <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg text-purple-600 dark:text-purple-300 group-hover:scale-110 transition">
+                📊
+            </div>
+            <div class="text-left">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">Visual Analytics</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">View charts, distributions & heatmaps</p>
+            </div>
+        </button>
+
+        <button onclick="showSection('predict')" class="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition flex items-center space-x-4">
+            <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg text-blue-600 dark:text-blue-300 group-hover:scale-110 transition">
+                🚀
+            </div>
+            <div class="text-left">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">Make Predictions</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Forecast new data using this model</p>
+            </div>
+        </button>
+    </div>
+
+    <div id="visualize" class="hidden space-y-6 animate-fade-in">
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">📊 Data Insights</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border dark:border-gray-700">
+                <h4 class="text-sm font-bold text-gray-500 uppercase mb-2">Target Distribution</h4>
+                <img src="{{ plots.distribution }}" class="w-full rounded-lg" alt="Distribution">
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border dark:border-gray-700">
+                <h4 class="text-sm font-bold text-gray-500 uppercase mb-2">Correlation Heatmap</h4>
+                {% if plots.heatmap %}
+                    <img src="{{ plots.heatmap }}" class="w-full rounded-lg" alt="Heatmap">
+                {% else %}
+                    <div class="h-48 flex items-center justify-center text-gray-400 text-sm">
+                        Not enough numeric data for heatmap.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="font-bold text-gray-800 dark:text-white">Detailed Model Metrics</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                    <thead class="bg-gray-50 dark:bg-gray-700 text-xs uppercase">
+                        <tr>
+                            <th class="px-6 py-3">Model</th>
+                            <th class="px-6 py-3">Metrics</th>
+                            <th class="px-6 py-3">Best Parameters</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        {% for model, metrics in results.metrics.items %}
+                        <tr class="{% if model == results.best_model_name %}bg-green-50 dark:bg-green-900/20{% endif %}">
+                            <td class="px-6 py-4 font-medium flex items-center space-x-2">
+                                <span>{{ model }}</span>
+                                {% if model == results.best_model_name %}
+                                    <span class="px-2 py-0.5 rounded text-xs bg-green-200 text-green-800 font-bold">WINNER</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% for key, val in metrics.items %}
+                                    {% if key != 'Best Params' %}
+                                        <div class="mr-3 inline-block">
+                                            <span class="font-bold">{{ key }}:</span> {{ val }}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td class="px-6 py-4 font-mono text-xs">
+                                  {{ metrics.best_params }}  
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="predict" class="hidden animate-fade-in">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-xl p-8 text-white text-center">
+            <h2 class="text-3xl font-bold mb-4">🚀 Forecast the Future</h2>
+            <p class="text-blue-100 mb-8 max-w-xl mx-auto">
+                Upload a new CSV file (without the target column). Our AI will generate predictions instantly and provide a downloadable CSV.
+            </p>
+            
+            <form action="{% url 'predict' dataset_id %}" method="post" enctype="multipart/form-data" class="bg-white p-6 rounded-xl max-w-md mx-auto shadow-lg text-gray-800">
+                {% csrf_token %}
+                <div class="mb-4 text-left">
+                    <label class="block text-sm font-bold mb-2">Upload New Data (.csv)</label>
+                    {{ pred_form.file }}
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105">
+                    Generate Predictions ⚡
+                </button>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function showSection(id) {
+        // Hide all sections first
+        document.getElementById('visualize').classList.add('hidden');
+        document.getElementById('predict').classList.add('hidden');
+        
+        // Show selected section
+        document.getElementById(id).classList.remove('hidden');
+        
+        // Smooth scroll to it
+        document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+</script>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}

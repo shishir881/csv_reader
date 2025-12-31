@@ -98,7 +98,8 @@ class ModelTrainer:
                 metrics = {"MAE": round(mae, 2), "R2": round(r2, 4)}
                 score_to_compare = r2
             
-            metrics["Best Params"] = search.best_params_
+            # metrics["Best Params"] = search.best_params_
+            metrics["best_params"] = search.best_params_  # <--- Underscore works perfectly
             results[name] = metrics
 
             if score_to_compare > best_score:
