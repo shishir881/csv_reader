@@ -6,27 +6,30 @@
 <div class="max-w-6xl mx-auto space-y-8">
     
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center border border-gray-100 dark:border-gray-700">
-        <h2 class="text-2xl font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Model Performance</h2>
+        <h2 class="text-2xl font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            Model Performance ({{ results.best_model_name }})
+        </h2>
         
-        {% with score=results.metrics|first %} 
         <div class="mt-4 flex justify-center items-center">
              <div class="w-40 h-40 rounded-full flex items-center justify-center border-8 
                 {% if diagnosis.status == 'success' %}border-green-500 text-green-600 dark:text-green-400{% else %}border-yellow-500 text-yellow-600 dark:text-yellow-400{% endif %}">
                 
                 <div class="text-center">
                     <span class="block text-4xl font-bold">
-                        {% for key, val in score.items %}
-                            {% if key == 'R2' or key == 'Accuracy' %}
-                                {{ val }}
-                            {% endif %}
-                        {% endfor %}
+                        {% if best_metrics.R2 %}
+                            {{ best_metrics.R2 }}
+                        {% elif best_metrics.Accuracy %}
+                            {{ best_metrics.Accuracy }}
+                        {% else %}
+                            N/A
+                        {% endif %}
                     </span>
-                    <span class="text-sm font-medium uppercase">Score</span>
+                    <span class="text-sm font-medium uppercase">
+                        {% if best_metrics.R2 %}R² Score{% else %}Accuracy{% endif %}
+                    </span>
                 </div>
             </div>
         </div>
-        {% endwith %}
-
         <div class="mt-6 max-w-2xl mx-auto">
             <h3 class="text-xl font-bold {% if diagnosis.status == 'success' %}text-green-600{% else %}text-yellow-600{% endif %}">
                 {{ diagnosis.title }}

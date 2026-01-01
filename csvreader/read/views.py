@@ -10,6 +10,11 @@ from read.ml.utils import DataInspector
 from read.ml.preprocessing import FeatureEngineer
 from read.ml.trainer import ModelTrainer
 from read.ml.diagnostics import ModelDiagnoser
+from django.conf import settings
+from django.http import HttpResponse
+import os
+from read.ml.predictor import BatchPredictor
+from .forms import CustomSignupForm, CustomLoginForm, DatasetForm, PredictionForm
 
 # ===========================
 # 🔐 AUTHENTICATION VIEWS
@@ -77,6 +82,40 @@ def select_target_view(request, dataset_id):
         return train_model_view(request, dataset_id, target)
 
     return render(request, 'dashboard/select_target.html', {'columns': columns, 'dataset': dataset})
+
+@login_required(login_url='login')
+def predict_view(request, dataset_id):
+    if request.method == 'POST':
+        form = PredictionForm(request.POST, request.FILES)
+        if form.is_valid():
+            pred_file = request.FILES['file']
+            
+            # 1. Locate the saved model
+            model_path = os.path.join(settings.MEDIA_ROOT, 'models', f'model_{dataset_id}.pkl')
+            
+            # 2. Save uploaded CSV temporarily
+            temp_path = os.path.join(settings.MEDIA_ROOT, 'temp_pred.csv')
+            with open(temp_path, 'wb+') as destination:
+                for chunk in pred_file.chunks():
+                    destination.write(chunk)
+            
+            # 3. Run Prediction
+            try:
+                predictor = BatchPredictor(model_path)
+                result_df, status = predictor.predict(temp_path)
+                
+                if status == "Success":
+                    # 4. Return CSV Download
+                    response = HttpResponse(content_type='text/csv')
+                    response['Content-Disposition'] = 'attachment; filename="predictions.csv"'
+                    result_df.to_csv(path_or_buf=response, index=False)
+                    return response
+                else:
+                    return render(request, 'dashboard/error.html', {'error': status})
+            except Exception as e:
+                 return render(request, 'dashboard/error.html', {'error': f"Prediction Error: {str(e)}"})
+
+    return redirect('upload')
 
 def train_model_view(request, dataset_id, target_col):
     """Step 3: ML Engine runs here (With Verbose Logging)"""

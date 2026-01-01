@@ -15,6 +15,12 @@ class DatasetForm(forms.ModelForm):
             'file': forms.FileInput(attrs={'class': INPUT_CLASSES, 'accept': '.csv'})
         }
 
+class PredictionForm(forms.Form):
+    file = forms.FileField(
+        label="Upload New Data (CSV)",
+        widget=forms.FileInput(attrs={'class': INPUT_CLASSES, 'accept': '.csv'})
+    )
+
 # --- 2. AUTH FORMS (Existing updated) ---
 class CustomSignupForm(UserCreationForm):
     email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={'class': INPUT_CLASSES}))

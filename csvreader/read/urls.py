@@ -11,4 +11,5 @@ urlpatterns = [
     path('', views.upload_view, name='upload'),  # Homepage is Upload
     path('select/<int:dataset_id>/', views.select_target_view, name='select_target'),
     path('result/', views.train_model_view, name='result'), # (Internal use mostly)
+    path('predict/<int:dataset_id>/', views.predict_view, name='predict'),
 ]
