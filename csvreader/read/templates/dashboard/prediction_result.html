@@ -1,0 +1,38 @@
+{% extends 'layout.html' %}
+
+{% block title %}Prediction Result{% endblock %}
+
+{% block content %}
+<div class="flex justify-center items-center min-h-[60vh]">
+    <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
+        
+        <div class="bg-green-600 p-8 text-center text-white">
+            <h2 class="text-3xl font-bold">Prediction Complete!</h2>
+            <div class="mt-4 text-6xl font-extrabold bg-white/20 inline-block px-8 py-4 rounded-xl backdrop-blur-sm">
+                {{ prediction }}
+            </div>
+            <p class="mt-4 text-green-100">Predicted Value</p>
+        </div>
+
+        <div class="p-8">
+            <h3 class="text-gray-500 uppercase text-sm font-bold mb-4 tracking-wider">Based on these inputs:</h3>
+            
+            <div class="grid grid-cols-2 gap-4">
+                {% for key, val in inputs.items %}
+                <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border dark:border-gray-600">
+                    <span class="block text-xs text-gray-400 uppercase">{{ key }}</span>
+                    <span class="block font-semibold text-gray-800 dark:text-white">{{ val }}</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="mt-8 text-center">
+                <button onclick="window.history.back()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-lg transition">
+                    Make Another Prediction
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

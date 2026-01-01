@@ -129,22 +129,71 @@
         </div>
     </div>
 
-    <div id="predict" class="hidden animate-fade-in">
-        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-xl p-8 text-white text-center">
-            <h2 class="text-3xl font-bold mb-4">🚀 Forecast the Future</h2>
-            <p class="text-blue-100 mb-8 max-w-xl mx-auto">
-                Upload a new CSV file (without the target column). Our AI will generate predictions instantly and provide a downloadable CSV.
-            </p>
+    <div id="predict" class="hidden animate-fade-in space-y-8">
+        
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-4">📖 Reference Data (Sample)</h3>
+            <p class="text-sm text-gray-500 mb-4">Use these values as a guide for what to enter below.</p>
             
-            <form action="{% url 'predict' dataset_id %}" method="post" enctype="multipart/form-data" class="bg-white p-6 rounded-xl max-w-md mx-auto shadow-lg text-gray-800">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                    <thead class="bg-gray-50 dark:bg-gray-700 text-xs uppercase font-bold">
+                        <tr>
+                            {% for col in feature_columns %}
+                                <th class="px-4 py-2">{{ col }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in reference_data %}
+                        <tr class="border-b dark:border-gray-700">
+                            {% for col in feature_columns %}
+                                <td class="px-4 py-2">
+                                    {% for key, val in row.items %}
+                                        {% if key == col %}{{ val }}{% endif %}
+                                    {% endfor %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-xl p-8 text-white">
+            <h2 class="text-3xl font-bold mb-2 text-center">🚀 Predict Future Value</h2>
+            <p class="text-blue-100 mb-8 text-center">Enter the details below to get an instant prediction.</p>
+            
+            <form action="{% url 'predict' dataset_id %}" method="post" class="bg-white p-8 rounded-xl shadow-lg text-gray-800">
                 {% csrf_token %}
-                <div class="mb-4 text-left">
-                    <label class="block text-sm font-bold mb-2">Upload New Data (.csv)</label>
-                    {{ pred_form.file }}
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% for col in feature_columns %}
+                    <div>
+                        <label class="block text-sm font-bold mb-2 capitalize">{{ col }}</label>
+                        
+                        {% for key, type in feature_types.items %}
+                            {% if key == col %}
+                                <input 
+                                    type="{% if type == 'number' %}number{% else %}text{% endif %}" 
+                                    name="{{ col }}" 
+                                    step="any"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-100"
+                                    placeholder="Enter {{ col }}..."
+                                    required
+                                >
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
                 </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105">
-                    Generate Predictions ⚡
-                </button>
+
+                <div class="mt-8">
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-lg transition transform hover:scale-105 text-lg shadow-lg">
+                        Calculate Prediction ⚡
+                    </button>
+                </div>
             </form>
         </div>
     </div>

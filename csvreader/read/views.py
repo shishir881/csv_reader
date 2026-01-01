@@ -83,37 +83,69 @@ def select_target_view(request, dataset_id):
 
     return render(request, 'dashboard/select_target.html', {'columns': columns, 'dataset': dataset})
 
+# read/views.py
+
 @login_required(login_url='login')
 def predict_view(request, dataset_id):
     if request.method == 'POST':
-        form = PredictionForm(request.POST, request.FILES)
-        if form.is_valid():
-            pred_file = request.FILES['file']
+        # 1. Load the Model
+        model_path = os.path.join(settings.MEDIA_ROOT, 'models', f'model_{dataset_id}.pkl')
+        if not os.path.exists(model_path):
+            return render(request, 'dashboard/error.html', {'error': "Model not found."})
+        
+        try:
+            # 2. Collect Data from Form
+            # request.POST gives us a dictionary of inputs
+            input_data = {}
             
-            # 1. Locate the saved model
-            model_path = os.path.join(settings.MEDIA_ROOT, 'models', f'model_{dataset_id}.pkl')
+            # We need to know the original columns to reconstruct the DataFrame correctly
+            # (We load the dataset just to get column names/types - slight overhead but safe)
+            dataset = Dataset.objects.get(id=dataset_id)
+            original_df = pd.read_csv(dataset.file.path)
             
-            # 2. Save uploaded CSV temporarily
-            temp_path = os.path.join(settings.MEDIA_ROOT, 'temp_pred.csv')
-            with open(temp_path, 'wb+') as destination:
-                for chunk in pred_file.chunks():
-                    destination.write(chunk)
+            # We assume the last trained target is NOT in the form
+            # In a real app, we might store 'features' in the DB to avoid reading CSV again
+            # For now, we just exclude the column that is NOT in POST data or handle all
             
-            # 3. Run Prediction
-            try:
-                predictor = BatchPredictor(model_path)
-                result_df, status = predictor.predict(temp_path)
+            for key, value in request.POST.items():
+                if key == 'csrfmiddlewaretoken': continue # Skip security token
                 
-                if status == "Success":
-                    # 4. Return CSV Download
-                    response = HttpResponse(content_type='text/csv')
-                    response['Content-Disposition'] = 'attachment; filename="predictions.csv"'
-                    result_df.to_csv(path_or_buf=response, index=False)
-                    return response
-                else:
-                    return render(request, 'dashboard/error.html', {'error': status})
-            except Exception as e:
-                 return render(request, 'dashboard/error.html', {'error': f"Prediction Error: {str(e)}"})
+                # Check original type to convert string input to float/int
+                if key in original_df.columns:
+                    if pd.api.types.is_numeric_dtype(original_df[key]):
+                        try:
+                            input_data[key] = float(value)
+                        except:
+                            input_data[key] = 0 # Default to 0 if empty/error
+                    else:
+                        input_data[key] = value
+
+            # 3. Create a Single-Row DataFrame
+            input_df = pd.DataFrame([input_data])
+            
+            # 4. Predict
+            # We use the same FeatureEngineer but we pass target_col=None
+            # Note: We need to handle preprocessing on this single row
+            
+            # LOAD PREDICTOR
+            predictor = BatchPredictor(model_path)
+            
+            # The predictor expects a CSV path usually, but let's modify it or use the internal logic
+            # Let's direct-call the model for simplicity here, assuming the pipeline handles it
+            prediction = predictor.model.predict(input_df)[0]
+            
+            # Round if it's a number
+            if isinstance(prediction, (int, float)):
+                prediction = round(prediction, 2)
+
+            return render(request, 'dashboard/prediction_result.html', {
+                'inputs': input_data,
+                'prediction': prediction,
+                'dataset_id': dataset_id
+            })
+
+        except Exception as e:
+             return render(request, 'dashboard/error.html', {'error': f"Prediction Error: {str(e)}"})
 
     return redirect('upload')
 
@@ -198,13 +230,34 @@ def train_model_view(request, dataset_id, target_col):
         
         print(f"{'='*50}\n") # End Log
 
+
+        # 1. Get Feature Columns (All columns except Target)
+        feature_columns = [col for col in df.columns if col != target_col]
+        
+        # 2. Get Column Data Types (To decide if input is Text or Number)
+        # We create a dictionary like: {'horsepower': 'number', 'make': 'text'}
+        feature_types = {}
+        for col in feature_columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                feature_types[col] = 'number'
+            else:
+                feature_types[col] = 'text'
+
+        # 3. Create Reference Table (Top 5 rows, only feature columns)
+        reference_data = df[feature_columns].head(5).to_dict(orient='records')
+
         # 7. Render Result
         context = {
             'results': results,
             'diagnosis': diagnosis,
             'target': target_col,
             'problem_type': problem_type,
-            'dataset_id': dataset_id # Needed for the prediction button
+            'dataset_id': dataset_id, # Needed for the prediction button
+
+            # Pass these new things to HTML
+            'feature_columns': feature_columns, 
+            'feature_types': feature_types,
+            'reference_data': reference_data,
         }
         return render(request, 'dashboard/result.html', context)
         
