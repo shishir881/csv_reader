@@ -22,30 +22,35 @@ class DataInspector:
     def detect_problem_type(self):
         """
         Determines if this is a Regression or Classification problem.
-        Handles dirty data (e.g. numeric columns with '?' or strings).
         """
         target = self.df[self.target_col]
         
-        # 1. Try to convert to numeric to see if it's actually a number
-        # 'coerce' turns '?' into NaN so we can count valid numbers
+        # 1. Try to convert to numeric
         target_numeric = pd.to_numeric(target, errors='coerce')
         valid_count = target_numeric.count()
         total_count = len(target)
         
-        # If > 50% of the data is numeric, treat it as numeric-like
+        # If > 50% of the data is numeric
         is_numeric_like = (valid_count / total_count) > 0.5
         
         if is_numeric_like:
             unique_count = target_numeric.nunique()
-            # If unique values are many (>20 and >5% of valid rows) -> REGRESSION
-            # (e.g. Prices, Temperatures, Sales)
-            if unique_count > 20 and (unique_count / valid_count) > 0.05:
+            
+            # RULE 1: High Cardinality (Many unique values) -> REGRESSION
+            # (Old Rule was too strict: required 5% unique)
+            # New Rule: If > 50 unique numbers, it's likely Regression (e.g., Age, Minutes, Price)
+            if unique_count > 50:
                 return 'regression'
-            # Otherwise -> CLASSIFICATION 
-            # (e.g. 0, 1, 2 or Ratings 1-5)
+                
+            # RULE 2: Ratio Check for smaller unique counts
+            # If unique values are > 10 AND represent > 5% of data (e.g. small datasets)
+            if unique_count > 10 and (unique_count / valid_count) > 0.05:
+                return 'regression'
+                
+            # Otherwise -> CLASSIFICATION (e.g. 0, 1, Ratings 1-5, Zip Codes)
             return 'classification'
             
-        # 2. If it's strictly text/categorical -> CLASSIFICATION
+        # 2. If it's strictly text -> CLASSIFICATION
         return 'classification'
 
     def get_column_types(self):
