@@ -12,7 +12,7 @@ class DataVisualizer:
         self.df = df
         self.target_col = target_col
         self.problem_type = problem_type
-        sns.set_style("whitegrid") # Clean style
+        sns.set_style("whitegrid")
 
     def _get_image_base64(self):
         """Converts plot to Base64 string for HTML"""
@@ -21,7 +21,7 @@ class DataVisualizer:
         buffer.seek(0)
         image_png = buffer.getvalue()
         buffer.close()
-        plt.close() # Important: Close plot to free memory
+        plt.close()
         graphic = base64.b64encode(image_png)
         return "data:image/png;base64," + graphic.decode('utf-8')
 
@@ -35,11 +35,15 @@ class DataVisualizer:
             plt.xlabel(self.target_col)
             plt.ylabel('Frequency')
         else:
-            # Count Plot for Classification (Top 10 classes)
+            # Count Plot for Classification
             top_classes = self.df[self.target_col].value_counts().nlargest(10).index
             filtered_data = self.df[self.df[self.target_col].isin(top_classes)]
             
-            sns.countplot(x=self.target_col, data=filtered_data, palette='viridis', order=top_classes)
+            # ✅ FIX: Added hue and legend=False to silence FutureWarning
+            sns.countplot(x=self.target_col, data=filtered_data, 
+                          hue=self.target_col, palette='viridis', 
+                          order=top_classes, legend=False)
+            
             plt.title(f'Class Distribution: {self.target_col} (Top 10)', fontsize=14)
             plt.xlabel(self.target_col)
             plt.ylabel('Count')
@@ -49,14 +53,11 @@ class DataVisualizer:
         return self._get_image_base64()
 
     def plot_heatmap(self):
-        # Select numeric columns only
         numeric_df = self.df.select_dtypes(include=[np.number])
         
-        # If numeric data is too less, return None
         viz_df = numeric_df.copy()
         if viz_df.shape[1] < 2: return None
         
-        # Limit to top 15 correlated features to avoid messy heatmap
         if viz_df.shape[1] > 15 and self.target_col in viz_df.columns:
             corr_with_target = viz_df.corrwith(viz_df[self.target_col]).abs()
             top_features = corr_with_target.sort_values(ascending=False).head(15).index
@@ -66,7 +67,7 @@ class DataVisualizer:
 
         plt.figure(figsize=(10, 8))
         corr = viz_df.corr()
-        mask = np.triu(np.ones_like(corr, dtype=bool)) # Hide upper triangle
+        mask = np.triu(np.ones_like(corr, dtype=bool))
         
         sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap='coolwarm',
                     square=True, linewidths=.5, cbar_kws={"shrink": .5},
@@ -77,7 +78,6 @@ class DataVisualizer:
         return self._get_image_base64()
 
     def plot_top_correlations(self):
-        # Bar chart showing which features affect the target most
         numeric_df = self.df.select_dtypes(include=[np.number])
         viz_df = numeric_df.copy()
         
@@ -86,7 +86,6 @@ class DataVisualizer:
         corr = viz_df.corrwith(viz_df[self.target_col]).sort_values(ascending=False)
         corr = corr.drop(labels=[self.target_col], errors='ignore')
         
-        # Top 10 strongest correlations (positive or negative)
         top_corr = corr.abs().sort_values(ascending=False).head(10)
         top_corr_signed = corr[top_corr.index]
         
@@ -94,7 +93,11 @@ class DataVisualizer:
 
         plt.figure(figsize=(10, 5))
         colors = ['#10B981' if x > 0 else '#EF4444' for x in top_corr_signed.values]
-        sns.barplot(x=top_corr_signed.values, y=top_corr_signed.index, palette=colors)
+        
+        # ✅ FIX: Added hue and legend=False here too
+        sns.barplot(x=top_corr_signed.values, y=top_corr_signed.index, 
+                    hue=top_corr_signed.index, palette=colors, legend=False)
+        
         plt.title('Top 10 Factors Affecting Target', fontsize=14)
         plt.xlabel('Correlation Coefficient (Green=Positive, Red=Negative)')
         
