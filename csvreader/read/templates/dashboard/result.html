@@ -66,25 +66,40 @@
         </button>
     </div>
 
-    <div id="visualize" class="hidden space-y-6 animate-fade-in">
-        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">📊 Data Insights</h2>
+    <div id="visualize" class="hidden space-y-8 animate-fade-in">
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">📊 Data Insights & Analytics</h2>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border dark:border-gray-700">
                 <h4 class="text-sm font-bold text-gray-500 uppercase mb-2">Target Distribution</h4>
-                <img src="{{ plots.distribution }}" class="w-full rounded-lg" alt="Distribution">
+                {% if plots.distribution %}
+                    <img src="{{ plots.distribution }}" class="w-full rounded-lg" alt="Distribution Plot">
+                {% else %}
+                    <p class="text-gray-400 text-center py-10">Plot not available.</p>
+                {% endif %}
             </div>
 
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border dark:border-gray-700">
-                <h4 class="text-sm font-bold text-gray-500 uppercase mb-2">Correlation Heatmap</h4>
-                {% if plots.heatmap %}
-                    <img src="{{ plots.heatmap }}" class="w-full rounded-lg" alt="Heatmap">
+                <h4 class="text-sm font-bold text-gray-500 uppercase mb-2">Top Influencing Factors</h4>
+                {% if plots.correlations %}
+                    <img src="{{ plots.correlations }}" class="w-full rounded-lg" alt="Correlations Plot">
                 {% else %}
                     <div class="h-48 flex items-center justify-center text-gray-400 text-sm">
-                        Not enough numeric data for heatmap.
+                        Not enough numeric data for correlation analysis.
                     </div>
                 {% endif %}
             </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border dark:border-gray-700">
+            <h4 class="text-sm font-bold text-gray-500 uppercase mb-4">Feature Correlation Heatmap</h4>
+            {% if plots.heatmap %}
+                <img src="{{ plots.heatmap }}" class="w-full rounded-lg max-h-[600px] object-contain mx-auto" alt="Heatmap">
+            {% else %}
+                <div class="h-48 flex items-center justify-center text-gray-400 text-sm">
+                    Not enough numeric data for heatmap.
+                </div>
+            {% endif %}
         </div>
         
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
@@ -111,7 +126,7 @@
                             </td>
                             <td class="px-6 py-4">
                                 {% for key, val in metrics.items %}
-                                    {% if key != 'Best Params' %}
+                                    {% if key != 'best_params' %}
                                         <div class="mr-3 inline-block">
                                             <span class="font-bold">{{ key }}:</span> {{ val }}
                                         </div>
@@ -119,7 +134,7 @@
                                 {% endfor %}
                             </td>
                             <td class="px-6 py-4 font-mono text-xs">
-                                  {{ metrics.best_params }}  
+                                {{ metrics.best_params }}  
                             </td>
                         </tr>
                         {% endfor %}

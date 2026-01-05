@@ -15,6 +15,7 @@ from django.http import HttpResponse
 import os
 from read.ml.predictor import BatchPredictor
 from .forms import CustomSignupForm, CustomLoginForm, DatasetForm, PredictionForm
+from read.ml.visualizer import DataVisualizer
 
 # ===========================
 # 🔐 AUTHENTICATION VIEWS
@@ -207,6 +208,18 @@ def train_model_view(request, dataset_id, target_col):
         print(f"   -> 🏆 WINNER: {best_model}")
         print(f"   -> 📊 SCORE: {metrics}")
 
+
+        print("📊 Generating Visualizations...")
+        try:
+            # We use 'clean_df' because it's clean (no NaNs) but readable
+            visualizer = DataVisualizer(clean_df, target_col, problem_type)
+            plots = visualizer.generate_all()
+        except Exception as e:
+            print(f"⚠️ Visualization Failed: {e}")
+            plots = {} # Empty if fails
+
+        
+
         # 5. Diagnostics
         print("\n🩺 Step 4: Running Diagnostics...")
         diagnoser = ModelDiagnoser(
@@ -230,21 +243,21 @@ def train_model_view(request, dataset_id, target_col):
         
         print(f"{'='*50}\n") # End Log
 
-
-        # 1. Get Feature Columns (All columns except Target)
-        feature_columns = [col for col in df.columns if col != target_col]
+        # 1. Get Feature Columns (Only columns that survived cleaning)
+        # OLD: feature_columns = [col for col in df.columns if col != target_col]
+        feature_columns = [col for col in clean_df.columns if col != target_col]
         
-        # 2. Get Column Data Types (To decide if input is Text or Number)
-        # We create a dictionary like: {'horsepower': 'number', 'make': 'text'}
+        # 2. Get Column Data Types
         feature_types = {}
         for col in feature_columns:
-            if pd.api.types.is_numeric_dtype(df[col]):
+            # We check types from clean_df
+            if pd.api.types.is_numeric_dtype(clean_df[col]):
                 feature_types[col] = 'number'
             else:
                 feature_types[col] = 'text'
 
-        # 3. Create Reference Table (Top 5 rows, only feature columns)
-        reference_data = df[feature_columns].head(5).to_dict(orient='records')
+        # 3. Create Reference Table (Top 5 rows from clean data)
+        reference_data = clean_df[feature_columns].head(5).to_dict(orient='records')
 
         # 7. Render Result
         context = {
@@ -258,6 +271,7 @@ def train_model_view(request, dataset_id, target_col):
             'feature_columns': feature_columns, 
             'feature_types': feature_types,
             'reference_data': reference_data,
+            'plots': plots, # Visualizations
         }
         return render(request, 'dashboard/result.html', context)
         
