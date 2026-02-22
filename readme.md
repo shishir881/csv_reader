@@ -35,8 +35,9 @@ Follow these steps to get the project running on your local machine.
 ```bash
 git clone [https://github.com/yourusername/csv_reader.git](https://github.com/yourusername/csv_reader.git)
 cd csv_reader/csvreader
-
-2. Set Up the Virtual Environment
+```
+### 2. Set Up the Virtual Environment
+```
 Bash
 python -m venv venv
 
@@ -45,42 +46,44 @@ venv\Scripts\activate
 
 # On macOS/Linux:
 source venv/bin/activate
+```
 
-3. Install Python Dependencies
+### 3. Install Python Dependencies
+```
 Bash
 pip install -r requirements.txt
-
-4. Install Tailwind CSS Dependencies
+```
+### 4. Install Tailwind CSS Dependencies
 Navigate to the Tailwind static directory and install the required Node modules:
-
+```
 Bash
 cd theme/static_src
 npm install
 cd ../..
-
-5. Run Database Migrations
+```
+### 5. Run Database Migrations
 Initialize your local database:
-
+```
 Bash
 python manage.py makemigrations
 python manage.py migrate
-
-6. Start the Development Servers
+```
+### 6. Start the Development Servers
 You will need to run the Django server and the Tailwind build process simultaneously. Open two terminal windows.
-
+```
 Terminal 1 (Compile Tailwind CSS):
-
 Bash
 python manage.py tailwind start
-Terminal 2 (Run Django Server):
 
+
+Terminal 2 (Run Django Server):
 Bash
 python manage.py runserver
-
-7. Access the Application
+```
+### 7. Access the Application
 Open your web browser and navigate to: http://127.0.0.1:8000
 
-📖 Usage Guide
+### 📖 Usage Guide
 Sign Up / Log In: Create an account to access the dashboard.
 
 Upload Data: Navigate to the upload section and submit a clean .csv file.
@@ -93,7 +96,7 @@ View Diagnostics: Explore the generated correlation heatmaps and feature importa
 
 Make Predictions: Enter new data points into the generated form to test your trained model.
 
-🤝 Contributing
+### 🤝 Contributing
 Contributions, issues, and feature requests are welcome!
 
 Fork the Project
@@ -106,5 +109,5 @@ Push to the Branch (git push origin feature/AmazingFeature)
 
 Open a Pull Request
 
-📄 License
+### 📄 License
 Distributed under the MIT License. See LICENSE for more information.
