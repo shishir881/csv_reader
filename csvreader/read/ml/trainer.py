@@ -43,7 +43,7 @@ class ModelTrainer:
                 },
                 "Gradient Boosting": {
                     "model": GradientBoostingRegressor(random_state=42),
-                    "params": {"model__learning_rate": [0.000000000001, 0.1], "model__n_estimators": [50, 350]}
+                    "params": {"model__learning_rate": [0.01, 0.05, 0.1], "model__n_estimators": [50, 350]}
                 }
             }
 

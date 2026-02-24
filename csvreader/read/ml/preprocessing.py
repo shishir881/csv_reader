@@ -137,7 +137,7 @@ class FeatureEngineer:
         
         # 3. Filtering
         if self.target_col and self.target_col in self.df.columns:
-            self.filter_features(high_threshold=0.95, low_threshold=0.0)
+            self.filter_features(high_threshold=0.97, low_threshold=0.0)
 
         return self.df
 
