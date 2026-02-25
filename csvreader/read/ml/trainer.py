@@ -24,26 +24,26 @@ class ModelTrainer:
                 },
                 "Random Forest": {
                     "model": RandomForestClassifier(random_state=42),
-                    "params": {"model__n_estimators": [50, 100], "model__max_depth": [5, 10]}
+                    "params": {"model__n_estimators": [50, 100], "model__max_depth": [5, 10, 20]}
                 },
                 "Gradient Boosting": {
                     "model": GradientBoostingClassifier(random_state=42),
-                    "params": {"model__learning_rate": [0.01, 0.1], "model__n_estimators": [50, 100]}
+                    "params": {"model__learning_rate": [0.01, 0.05, 0.1], "model__n_estimators": [50, 100]}
                 }
             }
         else:
             return {
                 "Ridge Regression": {
                     "model": Ridge(),
-                    "params": {"model__alpha": [0.1, 1.0, 10.0]}
+                    "params": {"model__alpha": [0.1, 1.0, 10.0, 100.0]}
                 },
                 "Random Forest": {
                     "model": RandomForestRegressor(random_state=42),
-                    "params": {"model__n_estimators": [50, 100], "model__max_depth": [5, 10]}
+                    "params": {"model__n_estimators": [50, 100], "model__max_depth": [5, 10, 20]}
                 },
                 "Gradient Boosting": {
                     "model": GradientBoostingRegressor(random_state=42),
-                    "params": {"model__learning_rate": [0.01, 0.05, 0.1], "model__n_estimators": [50, 350]}
+                    "params": {"model__learning_rate": [0.01, 0.05, 0.1], "model__n_estimators": [50, 100]}
                 }
             }
 

@@ -18,6 +18,9 @@ class FeatureEngineer:
         self.dropped_noise = []
         self.dropped_redundant = []
 
+        self.reference_date = None  # Dataset ko sabai vanda paila ko date
+        self.trend_freq = None      # Daily, Monthly, or Yearly
+
     @property
     def dropped_cols(self):
         return self.dropped_leakage + self.dropped_noise + self.dropped_redundant
@@ -121,12 +124,41 @@ class FeatureEngineer:
             try:
                 self.df[self.date_col] = pd.to_datetime(self.df[self.date_col])
                 self.df = self.df.sort_values(by=self.date_col)
+                
+                # Starting date lai save garne (Future prediction ma kaam aauchha)
+                self.reference_date = self.df[self.date_col].min()
+                
+                # Dui wota date bich ko average gap (din ma) nikalne
+                avg_gap_days = self.df[self.date_col].diff().dt.days.median()
+                
+                # TIMLE VANEKO LOGIC: Check frequency and create 'time_index'
+                if pd.isna(avg_gap_days):
+                     self.df['time_index'] = 0
+                elif avg_gap_days >= 25 and avg_gap_days <= 35:
+                    # Monthly trend: Din random vaye pani ignore garne, mahina ko sequence banaune
+                    self.trend_freq = 'monthly'
+                    print("📅 Detected Monthly Trend. Sequencing by Month/Year...")
+                    self.df['time_index'] = (self.df[self.date_col].dt.year - self.reference_date.year) * 12 + (self.df[self.date_col].dt.month - self.reference_date.month)
+                elif avg_gap_days >= 360:
+                    # Yearly trend
+                    self.trend_freq = 'yearly'
+                    print("📅 Detected Yearly Trend. Sequencing by Year...")
+                    self.df['time_index'] = self.df[self.date_col].dt.year - self.reference_date.year
+                else:
+                    # Daily or Continuous trend
+                    self.trend_freq = 'daily'
+                    print("📅 Detected Daily/Continuous Trend. Sequencing by Days...")
+                    self.df['time_index'] = (self.df[self.date_col] - self.reference_date).dt.days
+
+                # Main model ko lagi basic year ra month pani rakhne
                 self.df['year'] = self.df[self.date_col].dt.year
                 self.df['month'] = self.df[self.date_col].dt.month
-                self.df['day'] = self.df[self.date_col].dt.day
+                
+                # Sklearn crash nahos vanera original date column lai faldine
                 self.df.drop(columns=[self.date_col], inplace=True)
+                
             except Exception as e:
-                print(f"⚠️ Date Processing Failed: {e}. Skipping date features.")
+                print(f"⚠️ Date Processing Failed: {e}. Skipping advanced date features.")
 
         # 2. Target Cleaning
         if self.target_col and self.target_col in self.df.columns:
