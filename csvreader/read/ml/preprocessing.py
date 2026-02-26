@@ -190,3 +190,24 @@ class FeatureEngineer:
             ('num', num_transformer, num_cols),
             ('cat', cat_transformer, cat_cols)
         ])
+
+    def get_future_time_index(user_date_str, reference_date, trend_freq):
+        """
+        User le haleko string date lai purano saved logic anusaar time_index ma convert garchha.
+        """
+        # 1. User ko date lai pandas DateTime ma convert garne
+        future_date = pd.to_datetime(user_date_str)
+        
+        # 2. Trend Frequency anusaar Math lagayera time_index nikalne
+        if trend_freq == 'monthly':
+            # (Future Year - Purano Year) * 12 + (Future Month - Purano Month)
+            time_index = (future_date.year - reference_date.year) * 12 + (future_date.month - reference_date.month)
+        
+        elif trend_freq == 'yearly':
+            time_index = future_date.year - reference_date.year
+            
+        else: # 'daily' wa continuous
+            time_index = (future_date - reference_date).days
+            
+        # User ko date bata year ra month pani firtà garne (Main prediction ma chaincha)
+        return time_index, future_date.year, future_date.month
