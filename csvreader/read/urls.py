@@ -12,4 +12,5 @@ urlpatterns = [
     path('select/<int:dataset_id>/', views.select_target_view, name='select_target'),
     path('result/', views.train_model_view, name='result'), # (Internal use mostly)
     path('predict/<int:dataset_id>/', views.predict_view, name='predict'),
+    path('predict-trend/', views.predict_future_trend, name='predict_future_trend'),
 ]

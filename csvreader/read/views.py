@@ -1,9 +1,14 @@
+import numpy as np
 import pandas as pd
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from .forms import CustomSignupForm, CustomLoginForm, DatasetForm
 from .models import Dataset
+from django.shortcuts import render
+from django.contrib import messages
+import os
+import joblib
 
 # --- ML MODULES IMPORTS (Tapaiko ML Folder bata) ---
 from read.ml.utils import DataInspector
@@ -16,6 +21,7 @@ import os
 from read.ml.predictor import BatchPredictor
 from .forms import CustomSignupForm, CustomLoginForm, DatasetForm, PredictionForm
 from read.ml.visualizer import DataVisualizer
+from read.ml.trend_predictor import AdvancedTrendPredictor, get_future_time_index
 
 # ===========================
 # 🔐 AUTHENTICATION VIEWS
@@ -150,6 +156,7 @@ def predict_view(request, dataset_id):
 
     return redirect('upload')
 
+@login_required(login_url='login')
 def train_model_view(request, dataset_id, target_col):
     """Step 3: ML Engine runs here (With Verbose Logging)"""
     
@@ -280,3 +287,96 @@ def train_model_view(request, dataset_id, target_col):
         import traceback
         traceback.print_exc() # Prints the full error line numbers to terminal
         return render(request, 'dashboard/error.html', {'error': f"ML Pipeline Failed: {str(e)}"})
+
+@login_required(login_url='login')
+def predict_future_trend(request):
+    """
+    User le future date select garda yo view call hunchha.
+    Yesle on-the-fly trend model train garchha ani future values predict garchha.
+    """
+    if request.method == 'POST':
+        try:
+            # 1. HTML form bata hidden variables ra user input line
+            file_path = request.POST.get('file_path')
+            model_path = request.POST.get('model_path')
+            future_date_str = request.POST.get('future_date')
+            date_col = request.POST.get('date_col')      # Dataset ko date column ko naam
+            target_col = request.POST.get('target_col')  # Final predict garne column ko naam
+
+            # GUARD: Basic validation
+            if not all([file_path, model_path, future_date_str, date_col, target_col]):
+                messages.error(request, "Missing required parameters (file_path, model_path, date_col, or target_col).")
+                return render(request, 'error.html', {'message': 'Missing data to calculate trend.'})
+
+            # 2. Main Trained Model Load Garne
+            main_model_data = joblib.load(model_path)
+            # Handle both dictionary and direct model formats for safety
+            if isinstance(main_model_data, dict) and 'best_model' in main_model_data:
+                main_model = main_model_data['best_model']
+            else:
+                main_model = main_model_data
+
+            # 3. Original CSV Data Load Garne
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Original dataset not found at {file_path}")
+            original_df = pd.read_csv(file_path)
+
+            # 4. Preprocess Data on-the-fly (time_index nikalna ko lagi)
+            print("⚡ Preprocessing data to extract time index...")
+            engineer = FeatureEngineer(original_df, target_col=target_col, date_col=date_col)
+            processed_df = engineer.preprocess()
+
+            # FeatureEngineer le save gareko variables tanne
+            reference_date = engineer.reference_date
+            trend_freq = engineer.trend_freq
+
+            if reference_date is None:
+                raise ValueError("Could not detect a valid date sequence in the dataset.")
+
+            # 5. Main model lai kun-kun features chahincha, tyo nikalne
+            try:
+                preprocessor = main_model.named_steps['preprocessor']
+                num_cols = preprocessor.transformers_[0][2]
+                cat_cols = preprocessor.transformers_[1][2]
+                expected_features = num_cols + cat_cols
+            except Exception as e:
+                # Fallback: target ra date bahek sabai
+                expected_features = [col for col in original_df.columns if col not in [target_col, date_col]]
+
+            # 6. Trend Predictor Train Garne (On-the-fly)
+            print("⚡ Training Trend Predictor on-the-fly...")
+            trend_predictor = AdvancedTrendPredictor()
+            trend_predictor.train_trends(processed_df, expected_features)
+
+            # 7. User ko Date lai time_index ma convert garne
+            future_index, year, month = get_future_time_index(future_date_str, reference_date, trend_freq)
+
+            # 8. Baki sabai features (Temperature, Weather, etc.) predict garne
+            predicted_features_df = trend_predictor.predict_for_date(future_index, year, month)
+
+            # 9. Main Model bata Final Target predict garne
+            final_prediction = main_model.predict(predicted_features_df)[0]
+            
+            # Formatting (Classification vs Regression ko lagi milaune)
+            if isinstance(final_prediction, float):
+                final_prediction = round(final_prediction, 2)
+
+            # 10. Output dekhauna dictionary ma convert garne
+            features_dict = predicted_features_df.iloc[0].to_dict()
+
+            # Result template ma pathaune context
+            context = {
+                'future_date': future_date_str,
+                'final_prediction': final_prediction,
+                'target_col': target_col,
+                'predicted_features': features_dict,
+            }
+            return render(request, 'trend_result.html', context)
+
+        except Exception as e:
+            print(f"Error in predict_future_trend: {e}")
+            messages.error(request, f"Error predicting future trend: {str(e)}")
+            return render(request, 'error.html', {'message': str(e)})
+
+    else:
+        return render(request, 'error.html', {'message': 'Invalid request method. Please use the form.'})

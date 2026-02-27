@@ -2,6 +2,7 @@ import pandas as pd
 import joblib
 import os
 from read.ml.trend_predictor import get_future_time_index
+from read.ml.trend_predictor import AdvancedTrendPredictor, TrendPredictor
 
 class BatchPredictor:
     def __init__(self, model_path):
