@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'django_browser_reload',
 ]
 TAILWIND_APP_NAME = 'theme'
-INTERNAL_IPS = [127, 0, 0, 1] #localhost
+INTERNAL_IPS = ["127.0.0.1"]  # Fix: was [127, 0, 0, 1] (integers, broken)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
