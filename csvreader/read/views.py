@@ -1,31 +1,47 @@
+import json
 import numpy as np
 import pandas as pd
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from .forms import CustomSignupForm, CustomLoginForm, DatasetForm
+from .forms import CustomSignupForm, CustomLoginForm, DatasetForm, PredictionForm
 from .models import Dataset
-from django.shortcuts import render
-from django.contrib import messages
 import os
 import joblib
 
-# --- ML MODULES IMPORTS (Tapaiko ML Folder bata) ---
 from read.ml.utils import DataInspector
-from read.ml.preprocessing import FeatureEngineer
+from read.ml.preprocessing import FeatureEngineer, DATE_DERIVED_COLS
 from read.ml.trainer import ModelTrainer
 from read.ml.diagnostics import ModelDiagnoser
 from django.conf import settings
-from django.http import HttpResponse
-import os
 from read.ml.predictor import BatchPredictor
-from .forms import CustomSignupForm, CustomLoginForm, DatasetForm, PredictionForm
 from read.ml.visualizer import DataVisualizer
 from read.ml.trend_predictor import AdvancedTrendPredictor, get_future_time_index
 
-# ===========================
-# 🔐 AUTHENTICATION VIEWS
-# ===========================
+
+# ──────────────────────────────────────────────────────────────
+# HELPERS
+# ──────────────────────────────────────────────────────────────
+
+def _model_paths(dataset_id):
+    d = os.path.join(settings.MEDIA_ROOT, 'models')
+    return (
+        os.path.join(d, f'model_{dataset_id}.pkl'),
+        os.path.join(d, f'model_{dataset_id}_meta.json'),
+    )
+
+
+def _extract_pipeline_features(pipeline):
+    """Pull exact num_cols + cat_cols from the fitted ColumnTransformer."""
+    pre = pipeline.named_steps['preprocessor']
+    num = list(pre.transformers_[0][2])
+    cat = list(pre.transformers_[1][2])
+    return num, cat, num + cat
+
+
+# ──────────────────────────────────────────────────────────────
+# AUTH
+# ──────────────────────────────────────────────────────────────
 
 def signup_view(request):
     if request.method == 'POST':
@@ -33,350 +49,385 @@ def signup_view(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
-            return redirect('upload') # Signup paxi sidhai upload ma
+            return redirect('upload')
     else:
         form = CustomSignupForm()
     return render(request, 'registration/signup.html', {'form': form})
+
 
 def login_view(request):
     if request.method == 'POST':
         form = CustomLoginForm(data=request.POST)
         if form.is_valid():
             login(request, form.get_user())
-            if 'next' in request.POST:
-                return redirect(request.POST.get('next'))
-            return redirect('upload')
+            return redirect(request.POST.get('next', 'upload'))
     else:
         form = CustomLoginForm()
     return render(request, 'registration/login.html', {'form': form})
+
 
 def logout_view(request):
     if request.method == 'POST':
         logout(request)
         return redirect('login')
 
-# ===========================
-# 📂 APP LOGIC (Upload -> Select -> Train)
-# ===========================
+
+# ──────────────────────────────────────────────────────────────
+# UPLOAD / SELECT TARGET
+# ──────────────────────────────────────────────────────────────
 
 @login_required(login_url='login')
 def upload_view(request):
-    """Step 1: User uploads CSV"""
     if request.method == 'POST':
         form = DatasetForm(request.POST, request.FILES)
         if form.is_valid():
             dataset = form.save()
-            # Upload sakepaxi Target Select garna pathaune
             return redirect('select_target', dataset_id=dataset.id)
     else:
         form = DatasetForm()
     return render(request, 'dashboard/upload.html', {'form': form})
 
+
 @login_required(login_url='login')
 def select_target_view(request, dataset_id):
-    """Step 2: User selects which column to predict"""
     dataset = get_object_or_404(Dataset, id=dataset_id)
-    
     try:
-        df = pd.read_csv(dataset.file.path)
+        df      = pd.read_csv(dataset.file.path)
         columns = df.columns.tolist()
     except Exception as e:
-        return render(request, 'dashboard/error.html', {'error': f"CSV Error: {e}"})
+        return render(request, 'dashboard/error.html', {'error': f"CSV read error: {e}"})
 
     if request.method == 'POST':
-        target = request.POST.get('target')
-        # Target payepaxi balla ML Train garne function call hunxa
-        return train_model_view(request, dataset_id, target)
+        return train_model_view(request, dataset_id, request.POST.get('target'))
 
-    return render(request, 'dashboard/select_target.html', {'columns': columns, 'dataset': dataset})
+    return render(request, 'dashboard/select_target.html',
+                  {'columns': columns, 'dataset': dataset})
 
-# read/views.py
 
-@login_required(login_url='login')
-def predict_view(request, dataset_id):
-    if request.method == 'POST':
-        # 1. Load the Model
-        model_path = os.path.join(settings.MEDIA_ROOT, 'models', f'model_{dataset_id}.pkl')
-        if not os.path.exists(model_path):
-            return render(request, 'dashboard/error.html', {'error': "Model not found."})
-        
-        try:
-            # 2. Collect Data from Form
-            # request.POST gives us a dictionary of inputs
-            input_data = {}
-            
-            # We need to know the original columns to reconstruct the DataFrame correctly
-            # (We load the dataset just to get column names/types - slight overhead but safe)
-            dataset = Dataset.objects.get(id=dataset_id)
-            original_df = pd.read_csv(dataset.file.path)
-            
-            # We assume the last trained target is NOT in the form
-            # In a real app, we might store 'features' in the DB to avoid reading CSV again
-            # For now, we just exclude the column that is NOT in POST data or handle all
-            
-            for key, value in request.POST.items():
-                if key == 'csrfmiddlewaretoken': continue # Skip security token
-                
-                # Check original type to convert string input to float/int
-                if key in original_df.columns:
-                    if pd.api.types.is_numeric_dtype(original_df[key]):
-                        try:
-                            input_data[key] = float(value)
-                        except:
-                            input_data[key] = 0 # Default to 0 if empty/error
-                    else:
-                        input_data[key] = value
-
-            # 3. Create a Single-Row DataFrame
-            input_df = pd.DataFrame([input_data])
-            
-            # 4. Predict
-            # We use the same FeatureEngineer but we pass target_col=None
-            # Note: We need to handle preprocessing on this single row
-            
-            # LOAD PREDICTOR
-            predictor = BatchPredictor(model_path)
-            
-            # The predictor expects a CSV path usually, but let's modify it or use the internal logic
-            # Let's direct-call the model for simplicity here, assuming the pipeline handles it
-            prediction = predictor.model.predict(input_df)[0]
-            
-            # Round if it's a number
-            if isinstance(prediction, (int, float)):
-                prediction = round(prediction, 2)
-
-            return render(request, 'dashboard/prediction_result.html', {
-                'inputs': input_data,
-                'prediction': prediction,
-                'dataset_id': dataset_id
-            })
-
-        except Exception as e:
-             return render(request, 'dashboard/error.html', {'error': f"Prediction Error: {str(e)}"})
-
-    return redirect('upload')
+# ──────────────────────────────────────────────────────────────
+# TRAIN
+# ──────────────────────────────────────────────────────────────
 
 @login_required(login_url='login')
 def train_model_view(request, dataset_id, target_col):
-    """Step 3: ML Engine runs here (With Verbose Logging)"""
-    
-    # 1. Setup Data
     dataset = get_object_or_404(Dataset, id=dataset_id)
-    df = pd.read_csv(dataset.file.path)
+    df      = pd.read_csv(dataset.file.path)
+    original_csv_cols = df.columns.tolist()
 
-    # --- SERVER LOG START ---
-    print(f"\n{'='*50}")
-    print(f"🚀 SERVER LOG: ML Pipeline Started")
-    print(f"📂 Dataset: {dataset.name}")
-    print(f"🎯 Target: {target_col}")
-    print(f"{'='*50}")
+    print(f"\n{'='*55}")
+    print(f"  ML Pipeline | {dataset.name} | target={target_col}")
+    print(f"{'='*55}")
 
     try:
-        # 2. Inspection
-        print("\n🔍 Step 1: Inspecting Data...")
+        # ── 1. Inspect ───────────────────────────────────────
         inspector = DataInspector(df, target_col)
-        
-        # Sanity Check
         is_valid, msg = inspector.sanity_check()
         if not is_valid:
-            print(f"❌ SANITY CHECK FAILED: {msg}")
             return render(request, 'dashboard/error.html', {'error': msg})
 
         problem_type = inspector.detect_problem_type()
-        col_types = inspector.get_column_types()
-        print(f"   -> Problem Type Detected: {problem_type.upper()}")
-        print(f"   -> Numerical Cols: {len(col_types['num_cols'])}")
-        print(f"   -> Categorical Cols: {len(col_types['cat_cols'])}")
+        col_types    = inspector.get_column_types()
+        date_col     = col_types['date_cols'][0] if col_types['date_cols'] else None
+        print(f"  problem={problem_type}  date_col={date_col}")
 
-        # 3. Preprocessing
-        print("\n🧹 Step 2: Preprocessing & Feature Engineering...")
-        engineer = FeatureEngineer(df, target_col, problem_type=problem_type)
-        clean_df = engineer.preprocess()
-        
-        # Log what was dropped
-        if engineer.dropped_leakage:
-            print(f"   ⚠️ LEAKAGE DETECTED & DROPPED: {engineer.dropped_leakage}")
-        if engineer.dropped_noise:
-            print(f"   🗑️ NOISE DROPPED: {engineer.dropped_noise}")
-        else:
-            print("   ✅ No features dropped as Noise (Threshold=0.0)")
-            
-        print(f"   -> Final Shape for Training: {clean_df.shape}")
-
-        # 4. Training
-        print("\n🏋️ Step 3: Training Models...")
-        pipeline = engineer.get_sklearn_pipeline(col_types['num_cols'], col_types['cat_cols'])
-        trainer = ModelTrainer(clean_df, target_col, pipeline, col_types, problem_type=problem_type)
-        results = trainer.train()
-        
-        best_model = results['best_model_name']
-        metrics = results['metrics'][best_model]
-        print(f"   -> ✅ Training Complete.")
-        print(f"   -> 🏆 WINNER: {best_model}")
-        print(f"   -> 📊 SCORE: {metrics}")
-
-
-        print("📊 Generating Visualizations...")
-        try:
-            # We use 'clean_df' because it's clean (no NaNs) but readable
-            visualizer = DataVisualizer(clean_df, target_col, problem_type)
-            plots = visualizer.generate_all()
-        except Exception as e:
-            print(f"⚠️ Visualization Failed: {e}")
-            plots = {} # Empty if fails
-
-        
-
-        # 5. Diagnostics
-        print("\n🩺 Step 4: Running Diagnostics...")
-        diagnoser = ModelDiagnoser(
-            results, # Pass full results dict
-            engineer, 
-            target_col
+        # ── 2. Preprocess ─────────────────────────────────────
+        # New architecture:
+        #   engineer.training_df  → num+cat only, no date cols → model training
+        #   engineer.date_df      → time_index/year/month     → trend prediction only
+        engineer = FeatureEngineer(
+            df, target_col, date_col=date_col, problem_type=problem_type
         )
-        diagnosis = diagnoser.get_diagnosis()
-        print(f"   -> Diagnosis Status: {diagnosis['status']}")
-        print(f"   -> Title: {diagnosis['title']}")
+        training_df = engineer.preprocess()  # returns engineer.training_df
 
-        # 6. Save Model
-        import joblib, os
-        from django.conf import settings
-        
-        model_dir = os.path.join(settings.MEDIA_ROOT, 'models')
-        os.makedirs(model_dir, exist_ok=True)
-        model_path = os.path.join(model_dir, f'model_{dataset_id}.pkl')
-        joblib.dump(results['best_model'], model_path)
-        print(f"\n💾 Model Saved to: {model_path}")
-        
-        print(f"{'='*50}\n") # End Log
+        print(f"  training_df cols : {list(training_df.columns)}")
+        print(f"  date_df cols     : {list(engineer.date_df.columns)}")
+        print(f"  dropped leakage  : {engineer.dropped_leakage}")
+        print(f"  dropped noise    : {engineer.dropped_noise}")
+        print(f"  dropped redundant: {engineer.dropped_redundant}")
 
-        # 1. Get Feature Columns (Only columns that survived cleaning)
-        # OLD: feature_columns = [col for col in df.columns if col != target_col]
-        feature_columns = [col for col in clean_df.columns if col != target_col]
-        
-        # 2. Get Column Data Types
-        feature_types = {}
-        for col in feature_columns:
-            # We check types from clean_df
-            if pd.api.types.is_numeric_dtype(clean_df[col]):
-                feature_types[col] = 'number'
-            else:
-                feature_types[col] = 'text'
+        # ── 3. Train on training_df only ──────────────────────
+        # Re-detect col types on the clean training df
+        clean_inspector = DataInspector(training_df, target_col)
+        clean_col_types = clean_inspector.get_column_types()
+        pipeline = engineer.get_sklearn_pipeline(
+            clean_col_types['num_cols'], clean_col_types['cat_cols']
+        )
+        trainer = ModelTrainer(
+            training_df, target_col, pipeline, clean_col_types, problem_type=problem_type
+        )
+        results      = trainer.train()
+        best_name    = results['best_model_name']
+        best_metrics = results['metrics'][best_name]
+        best_model   = results['best_model']
+        print(f"  winner={best_name}  metrics={best_metrics}")
 
-        # 3. Create Reference Table (Top 5 rows from clean data)
-        reference_data = clean_df[feature_columns].head(5).to_dict(orient='records')
+        # ── 4. Extract EXACT feature list from fitted pipeline ─
+        # This is the ground truth: only these columns exist in the model.
+        # Since training_df has NO date cols, model_feature_cols will NEVER
+        # include time_index / year / month — by design.
+        num_cols, cat_cols, model_feature_cols = _extract_pipeline_features(best_model)
+        print(f"  model_feature_cols={model_feature_cols}")
 
-        # 7. Render Result
+        # ── 5. Determine what user should fill in ─────────────
+        # user_input_cols = model_feature_cols that came from the original CSV
+        # (all of them, since date cols were never added to training_df)
+        user_input_cols = [
+            c for c in model_feature_cols
+            if c in original_csv_cols and c != target_col
+        ]
+        print(f"  user_input_cols={user_input_cols}")
+
+        # ── 6. Visualize ─────────────────────────────────────
+        try:
+            plots = DataVisualizer(training_df, target_col, problem_type).generate_all()
+        except Exception as e:
+            print(f"  viz failed: {e}")
+            plots = {}
+
+        # ── 7. Diagnose ──────────────────────────────────────
+        diagnosis = ModelDiagnoser(results, engineer, target_col).get_diagnosis()
+
+        # ── 8. Save model + metadata ─────────────────────────
+        model_path, meta_path = _model_paths(dataset_id)
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        joblib.dump(best_model, model_path)
+
+        meta = {
+            'target_col':          target_col,
+            'date_col':            date_col,
+            'original_csv_cols':   original_csv_cols,
+            'model_feature_cols':  model_feature_cols,
+            'num_cols':            num_cols,
+            'cat_cols':            cat_cols,
+            # user fills in ALL of these — no hidden date cols, no confusion
+            'user_input_cols':     user_input_cols,
+            'problem_type':        problem_type,
+            'file_path':           dataset.file.path,
+            'model_path':          model_path,
+            # Trend prediction metadata
+            'has_trend':           date_col is not None and engineer.reference_date is not None,
+            'trend_freq':          engineer.trend_freq,
+            'reference_date':      str(engineer.reference_date) if engineer.reference_date else None,
+        }
+        with open(meta_path, 'w') as f:
+            json.dump(meta, f, indent=2)
+        print(f"  metadata saved → {meta_path}")
+
+        # ── 9. Build context ──────────────────────────────────
+        feature_types = {
+            col: ('number' if pd.api.types.is_numeric_dtype(training_df[col]) else 'text')
+            for col in user_input_cols
+        }
+        # Sample rows shown as reference in the prediction form
+        reference_data = training_df[user_input_cols].head(5).to_dict(orient='records')
+
         context = {
-            'results': results,
-            'diagnosis': diagnosis,
-            'target': target_col,
+            'results':      results,
+            'best_metrics': best_metrics,
+            'diagnosis':    diagnosis,
+            'target':       target_col,
             'problem_type': problem_type,
-            'dataset_id': dataset_id, # Needed for the prediction button
-
-            # Pass these new things to HTML
-            'feature_columns': feature_columns, 
-            'feature_types': feature_types,
-            'reference_data': reference_data,
-            'plots': plots, # Visualizations
+            'dataset_id':   dataset_id,
+            # Prediction form — ONLY original CSV columns the model was trained on
+            'feature_columns': user_input_cols,
+            'feature_types':   feature_types,
+            'reference_data':  reference_data,
+            # Trend forecast section
+            'has_trend':   meta['has_trend'],
+            'date_col':    date_col or '',
+            'target_col':  target_col,
+            'file_path':   dataset.file.path,
+            'model_path':  model_path,
+            'plots':       plots,
         }
         return render(request, 'dashboard/result.html', context)
-        
+
     except Exception as e:
-        print(f"\n❌ CRITICAL ERROR IN ML PIPELINE: {str(e)}")
         import traceback
-        traceback.print_exc() # Prints the full error line numbers to terminal
-        return render(request, 'dashboard/error.html', {'error': f"ML Pipeline Failed: {str(e)}"})
+        traceback.print_exc()
+        return render(request, 'dashboard/error.html',
+                      {'error': f"ML Pipeline Failed: {str(e)}"})
+
+
+# ──────────────────────────────────────────────────────────────
+# PREDICT (manual feature entry — no date cols involved)
+# ──────────────────────────────────────────────────────────────
+
+@login_required(login_url='login')
+def predict_view(request, dataset_id):
+    """
+    Standard prediction: user fills in ONLY the columns the model was
+    trained on (all from the original CSV, no date-derived cols).
+
+    Flow:
+      1. Load metadata → get exact user_input_cols and model_feature_cols
+      2. Parse user POST values for each user_input_col
+      3. Build input_df with model_feature_cols in the correct order
+      4. model.predict(input_df)
+    """
+    if request.method != 'POST':
+        return redirect('upload')
+
+    model_path, meta_path = _model_paths(dataset_id)
+
+    if not os.path.exists(model_path):
+        return render(request, 'dashboard/error.html',
+                      {'error': "Model not found. Please re-train."})
+    if not os.path.exists(meta_path):
+        return render(request, 'dashboard/error.html',
+                      {'error': "Model metadata missing. Please re-train."})
+
+    try:
+        with open(meta_path) as f:
+            meta = json.load(f)
+
+        model              = joblib.load(model_path)
+        user_input_cols    = meta['user_input_cols']
+        model_feature_cols = meta['model_feature_cols']
+
+        dataset     = Dataset.objects.get(id=dataset_id)
+        original_df = pd.read_csv(dataset.file.path)
+
+        # ── Parse only the columns the user is supposed to fill ──
+        input_data = {}
+        for col in user_input_cols:
+            raw = request.POST.get(col, '').strip()
+            if col in original_df.columns and pd.api.types.is_numeric_dtype(original_df[col]):
+                try:
+                    input_data[col] = float(raw)
+                except (ValueError, TypeError):
+                    # Fallback to column median if user left blank or typed garbage
+                    input_data[col] = float(original_df[col].median())
+            else:
+                input_data[col] = raw if raw else (
+                    str(original_df[col].mode().iloc[0]) if col in original_df.columns else ''
+                )
+
+        # ── Build full feature row in the exact order the pipeline expects ──
+        # model_feature_cols == user_input_cols here (no date cols in model)
+        # but we use model_feature_cols to guarantee correct column order
+        row      = {col: input_data.get(col, np.nan) for col in model_feature_cols}
+        input_df = pd.DataFrame([row])
+
+        print(f"\n[predict_view] input:\n{input_df.to_dict(orient='records')}")
+
+        # ── Predict ───────────────────────────────────────────
+        prediction = model.predict(input_df)[0]
+        if isinstance(prediction, (int, float, np.integer, np.floating)):
+            prediction = round(float(prediction), 2)
+
+        return render(request, 'dashboard/prediction_result.html', {
+            'inputs':     input_data,
+            'prediction': prediction,
+            'dataset_id': dataset_id,
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return render(request, 'dashboard/error.html',
+                      {'error': f"Prediction failed: {str(e)}"})
+
+
+# ──────────────────────────────────────────────────────────────
+# TREND FORECAST (date only — completely separate path)
+# ──────────────────────────────────────────────────────────────
 
 @login_required(login_url='login')
 def predict_future_trend(request):
     """
-    User le future date select garda yo view call hunchha.
-    Yesle on-the-fly trend model train garchha ani future values predict garchha.
+    Trend-based prediction:
+      1. User picks a future date
+      2. AdvancedTrendPredictor (trained on date_df + training features)
+         predicts all model feature values for that date
+      3. Main model predicts target from those predicted feature values
+
+    Completely separate from predict_view — no user feature entry needed.
     """
-    if request.method == 'POST':
-        try:
-            # 1. HTML form bata hidden variables ra user input line
-            file_path = request.POST.get('file_path')
-            model_path = request.POST.get('model_path')
-            future_date_str = request.POST.get('future_date')
-            date_col = request.POST.get('date_col')      # Dataset ko date column ko naam
-            target_col = request.POST.get('target_col')  # Final predict garne column ko naam
+    if request.method != 'POST':
+        return render(request, 'dashboard/error.html', {'error': 'Invalid request method.'})
 
-            # GUARD: Basic validation
-            if not all([file_path, model_path, future_date_str, date_col, target_col]):
-                messages.error(request, "Missing required parameters (file_path, model_path, date_col, or target_col).")
-                return render(request, 'error.html', {'message': 'Missing data to calculate trend.'})
+    try:
+        file_path       = request.POST.get('file_path', '').strip()
+        model_path      = request.POST.get('model_path', '').strip()
+        future_date_str = request.POST.get('future_date', '').strip()
+        date_col        = request.POST.get('date_col', '').strip()
+        target_col      = request.POST.get('target_col', '').strip()
 
-            # 2. Main Trained Model Load Garne
-            main_model_data = joblib.load(model_path)
-            # Handle both dictionary and direct model formats for safety
-            if isinstance(main_model_data, dict) and 'best_model' in main_model_data:
-                main_model = main_model_data['best_model']
-            else:
-                main_model = main_model_data
+        missing = [k for k, v in {
+            'file_path': file_path, 'model_path': model_path,
+            'future_date': future_date_str,
+            'date_col': date_col, 'target_col': target_col,
+        }.items() if not v]
+        if missing:
+            return render(request, 'dashboard/error.html',
+                          {'error': f"Missing fields: {', '.join(missing)}"})
 
-            # 3. Original CSV Data Load Garne
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"Original dataset not found at {file_path}")
-            original_df = pd.read_csv(file_path)
+        for path, label in [(model_path, 'model'), (file_path, 'dataset')]:
+            if not os.path.exists(path):
+                return render(request, 'dashboard/error.html',
+                              {'error': f"File not found on server ({label})."})
 
-            # 4. Preprocess Data on-the-fly (time_index nikalna ko lagi)
-            print("⚡ Preprocessing data to extract time index...")
-            engineer = FeatureEngineer(original_df, target_col=target_col, date_col=date_col)
-            processed_df = engineer.preprocess()
+        # ── Load model ────────────────────────────────────────
+        main_model = joblib.load(model_path)
 
-            # FeatureEngineer le save gareko variables tanne
-            reference_date = engineer.reference_date
-            trend_freq = engineer.trend_freq
+        # ── Re-run preprocessing to get BOTH dataframes ───────
+        # This is the key: we get the exact same training_df and date_df
+        # that were used during training.
+        original_df = pd.read_csv(file_path)
+        engineer    = FeatureEngineer(
+            original_df, target_col=target_col, date_col=date_col
+        )
+        engineer.preprocess()  # populates engineer.training_df and engineer.date_df
 
-            if reference_date is None:
-                raise ValueError("Could not detect a valid date sequence in the dataset.")
+        if engineer.reference_date is None:
+            return render(request, 'dashboard/error.html', {
+                'error': f"Could not detect a date sequence in column '{date_col}'."
+            })
 
-            # 5. Main model lai kun-kun features chahincha, tyo nikalne
-            try:
-                preprocessor = main_model.named_steps['preprocessor']
-                num_cols = preprocessor.transformers_[0][2]
-                cat_cols = preprocessor.transformers_[1][2]
-                expected_features = num_cols + cat_cols
-            except Exception as e:
-                # Fallback: target ra date bahek sabai
-                expected_features = [col for col in original_df.columns if col not in [target_col, date_col]]
+        # ── Get exact feature list model was trained on ───────
+        _, _, model_feature_cols = _extract_pipeline_features(main_model)
 
-            # 6. Trend Predictor Train Garne (On-the-fly)
-            print("⚡ Training Trend Predictor on-the-fly...")
-            trend_predictor = AdvancedTrendPredictor()
-            trend_predictor.train_trends(processed_df, expected_features)
+        # ── Build the combined trend training df ──────────────
+        # date_df (time_index, year, month) + feature cols side-by-side
+        # This teaches the trend predictor: "given this time index → these feature values"
+        trend_train_df = engineer.get_trend_training_df()
+        print(f"  [trend] trend_train_df shape: {trend_train_df.shape}")
+        print(f"  [trend] trend_train_df cols : {list(trend_train_df.columns)}")
 
-            # 7. User ko Date lai time_index ma convert garne
-            future_index, year, month = get_future_time_index(future_date_str, reference_date, trend_freq)
+        # ── Train the trend predictor ─────────────────────────
+        trend_predictor = AdvancedTrendPredictor()
+        trend_predictor.train_trends(trend_train_df, model_feature_cols)
 
-            # 8. Baki sabai features (Temperature, Weather, etc.) predict garne
-            predicted_features_df = trend_predictor.predict_for_date(future_index, year, month)
+        # ── Convert future date → time index ──────────────────
+        future_index, year, month = get_future_time_index(
+            future_date_str, engineer.reference_date, engineer.trend_freq
+        )
 
-            # 9. Main Model bata Final Target predict garne
-            final_prediction = main_model.predict(predicted_features_df)[0]
-            
-            # Formatting (Classification vs Regression ko lagi milaune)
-            if isinstance(final_prediction, float):
-                final_prediction = round(final_prediction, 2)
+        # ── Predict all feature values for that date ──────────
+        predicted_features_df = trend_predictor.predict_for_date(future_index, year, month)
+        print(f"  [trend] predicted features:\n{predicted_features_df.to_dict(orient='records')}")
 
-            # 10. Output dekhauna dictionary ma convert garne
-            features_dict = predicted_features_df.iloc[0].to_dict()
+        # ── Final prediction from main model ──────────────────
+        final_prediction = main_model.predict(predicted_features_df)[0]
+        if isinstance(final_prediction, (float, np.floating)):
+            final_prediction = round(float(final_prediction), 2)
 
-            # Result template ma pathaune context
-            context = {
-                'future_date': future_date_str,
-                'final_prediction': final_prediction,
-                'target_col': target_col,
-                'predicted_features': features_dict,
-            }
-            return render(request, 'trend_result.html', context)
+        # Display: hide date-derived cols from the result page
+        features_dict = {
+            k: v for k, v in predicted_features_df.iloc[0].to_dict().items()
+            if k not in DATE_DERIVED_COLS
+        }
 
-        except Exception as e:
-            print(f"Error in predict_future_trend: {e}")
-            messages.error(request, f"Error predicting future trend: {str(e)}")
-            return render(request, 'error.html', {'message': str(e)})
+        return render(request, 'dashboard/trend_result.html', {
+            'future_date':        future_date_str,
+            'final_prediction':   final_prediction,
+            'target_col':         target_col,
+            'predicted_features': features_dict,
+        })
 
-    else:
-        return render(request, 'error.html', {'message': 'Invalid request method. Please use the form.'})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return render(request, 'dashboard/error.html',
+                      {'error': f"Trend prediction failed: {str(e)}"})

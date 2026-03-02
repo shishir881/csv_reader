@@ -1,28 +1,24 @@
 {% extends 'layout.html' %}
-
 {% block title %}Analysis Result{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto space-y-8">
-    
+
+    <!-- ── Score Card ── -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center border border-gray-100 dark:border-gray-700">
         <h2 class="text-2xl font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-            Model Performance ({{ results.best_model_name }})
+            Model Performance &mdash; {{ results.best_model_name }}
         </h2>
-        
-        <div class="mt-4 flex justify-center items-center">
-             <div class="w-40 h-40 rounded-full flex items-center justify-center border-8 
-                {% if diagnosis.status == 'success' %}border-green-500 text-green-600 dark:text-green-400{% else %}border-yellow-500 text-yellow-600 dark:text-yellow-400{% endif %}">
-                
+
+        <div class="mt-4 flex justify-center">
+            <div class="w-40 h-40 rounded-full flex items-center justify-center border-8
+                {% if diagnosis.status == 'success' %}border-green-500 text-green-600 dark:text-green-400
+                {% else %}border-yellow-500 text-yellow-600 dark:text-yellow-400{% endif %}">
                 <div class="text-center">
                     <span class="block text-4xl font-bold">
-                        {% if best_metrics.R2 %}
-                            {{ best_metrics.R2 }}
-                        {% elif best_metrics.Accuracy %}
-                            {{ best_metrics.Accuracy }}
-                        {% else %}
-                            N/A
-                        {% endif %}
+                        {% if best_metrics.R2 %}{{ best_metrics.R2 }}
+                        {% elif best_metrics.Accuracy %}{{ best_metrics.Accuracy }}
+                        {% else %}N/A{% endif %}
                     </span>
                     <span class="text-sm font-medium uppercase">
                         {% if best_metrics.R2 %}R² Score{% else %}Accuracy{% endif %}
@@ -30,12 +26,12 @@
                 </div>
             </div>
         </div>
+
         <div class="mt-6 max-w-2xl mx-auto">
             <h3 class="text-xl font-bold {% if diagnosis.status == 'success' %}text-green-600{% else %}text-yellow-600{% endif %}">
                 {{ diagnosis.title }}
             </h3>
             <p class="text-gray-600 dark:text-gray-300 mt-2 whitespace-pre-line">{{ diagnosis.message }}</p>
-            
             {% if diagnosis.suggestion %}
             <div class="mt-4 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-lg text-sm inline-block">
                 💡 <strong>Tip:</strong> {{ diagnosis.suggestion }}
@@ -44,67 +40,66 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <button onclick="showSection('visualize')" class="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition flex items-center space-x-4">
-            <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg text-purple-600 dark:text-purple-300 group-hover:scale-110 transition">
-                📊
-            </div>
+    <!-- ── Section Buttons ── -->
+    <div class="grid grid-cols-1 {% if has_trend %}md:grid-cols-3{% else %}md:grid-cols-2{% endif %} gap-6">
+        <button onclick="showSection('visualize')"
+            class="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition flex items-center space-x-4">
+            <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg text-purple-600 dark:text-purple-300 group-hover:scale-110 transition">📊</div>
             <div class="text-left">
                 <h3 class="text-lg font-bold text-gray-800 dark:text-white">Visual Analytics</h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400">View charts, distributions & heatmaps</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Charts, distributions & heatmaps</p>
             </div>
         </button>
 
-        <button onclick="showSection('predict')" class="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition flex items-center space-x-4">
-            <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg text-blue-600 dark:text-blue-300 group-hover:scale-110 transition">
-                🚀
-            </div>
+        <button onclick="showSection('predict')"
+            class="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition flex items-center space-x-4">
+            <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg text-blue-600 dark:text-blue-300 group-hover:scale-110 transition">🚀</div>
             <div class="text-left">
                 <h3 class="text-lg font-bold text-gray-800 dark:text-white">Make Predictions</h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Forecast new data using this model</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Enter feature values from your CSV</p>
             </div>
         </button>
+
+        {% if has_trend %}
+        <button onclick="showSection('trend')"
+            class="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition flex items-center space-x-4">
+            <div class="p-3 bg-teal-100 dark:bg-teal-900 rounded-lg text-teal-600 dark:text-teal-300 group-hover:scale-110 transition">📅</div>
+            <div class="text-left">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">Trend Forecast</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Predict by future date only</p>
+            </div>
+        </button>
+        {% endif %}
     </div>
 
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- VISUALIZE                                             -->
+    <!-- ══════════════════════════════════════════════════════ -->
     <div id="visualize" class="hidden space-y-8 animate-fade-in">
-        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">📊 Data Insights & Analytics</h2>
-        
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">📊 Data Insights</h2>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border dark:border-gray-700">
-                <h4 class="text-sm font-bold text-gray-500 uppercase mb-2">Target Distribution</h4>
-                {% if plots.distribution %}
-                    <img src="{{ plots.distribution }}" class="w-full rounded-lg" alt="Distribution Plot">
-                {% else %}
-                    <p class="text-gray-400 text-center py-10">Plot not available.</p>
-                {% endif %}
+                <h4 class="text-xs font-bold text-gray-500 uppercase mb-3">Target Distribution</h4>
+                {% if plots.distribution %}<img src="{{ plots.distribution }}" class="w-full rounded-lg" alt="Distribution">
+                {% else %}<p class="text-gray-400 text-center py-10">Not available.</p>{% endif %}
             </div>
-
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border dark:border-gray-700">
-                <h4 class="text-sm font-bold text-gray-500 uppercase mb-2">Top Influencing Factors</h4>
-                {% if plots.correlations %}
-                    <img src="{{ plots.correlations }}" class="w-full rounded-lg" alt="Correlations Plot">
-                {% else %}
-                    <div class="h-48 flex items-center justify-center text-gray-400 text-sm">
-                        Not enough numeric data for correlation analysis.
-                    </div>
-                {% endif %}
+                <h4 class="text-xs font-bold text-gray-500 uppercase mb-3">Top Influencing Factors</h4>
+                {% if plots.correlations %}<img src="{{ plots.correlations }}" class="w-full rounded-lg" alt="Correlations">
+                {% else %}<div class="h-48 flex items-center justify-center text-gray-400 text-sm">Not enough numeric data.</div>{% endif %}
             </div>
         </div>
 
         <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border dark:border-gray-700">
-            <h4 class="text-sm font-bold text-gray-500 uppercase mb-4">Feature Correlation Heatmap</h4>
-            {% if plots.heatmap %}
-                <img src="{{ plots.heatmap }}" class="w-full rounded-lg max-h-[600px] object-contain mx-auto" alt="Heatmap">
-            {% else %}
-                <div class="h-48 flex items-center justify-center text-gray-400 text-sm">
-                    Not enough numeric data for heatmap.
-                </div>
-            {% endif %}
+            <h4 class="text-xs font-bold text-gray-500 uppercase mb-4">Correlation Heatmap</h4>
+            {% if plots.heatmap %}<img src="{{ plots.heatmap }}" class="w-full rounded-lg max-h-[600px] object-contain mx-auto" alt="Heatmap">
+            {% else %}<div class="h-48 flex items-center justify-center text-gray-400 text-sm">Not enough numeric data.</div>{% endif %}
         </div>
-        
+
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 class="font-bold text-gray-800 dark:text-white">Detailed Model Metrics</h3>
+                <h3 class="font-bold text-gray-800 dark:text-white">Model Comparison</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-gray-600 dark:text-gray-300">
@@ -118,24 +113,18 @@
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                         {% for model, metrics in results.metrics.items %}
                         <tr class="{% if model == results.best_model_name %}bg-green-50 dark:bg-green-900/20{% endif %}">
-                            <td class="px-6 py-4 font-medium flex items-center space-x-2">
-                                <span>{{ model }}</span>
+                            <td class="px-6 py-4 font-medium">
+                                {{ model }}
                                 {% if model == results.best_model_name %}
-                                    <span class="px-2 py-0.5 rounded text-xs bg-green-200 text-green-800 font-bold">WINNER</span>
+                                <span class="ml-2 px-2 py-0.5 rounded text-xs bg-green-200 text-green-800 font-bold">WINNER</span>
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4">
                                 {% for key, val in metrics.items %}
-                                    {% if key != 'best_params' %}
-                                        <div class="mr-3 inline-block">
-                                            <span class="font-bold">{{ key }}:</span> {{ val }}
-                                        </div>
-                                    {% endif %}
+                                    {% if key != 'best_params' %}<span class="mr-3"><strong>{{ key }}:</strong> {{ val }}</span>{% endif %}
                                 {% endfor %}
                             </td>
-                            <td class="px-6 py-4 font-mono text-xs">
-                                {{ metrics.best_params }}  
-                            </td>
+                            <td class="px-6 py-4 font-mono text-xs">{{ metrics.best_params }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -144,30 +133,59 @@
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- PREDICT — manual entry                                -->
+    <!--                                                       -->
+    <!-- Only columns that are:                                -->
+    <!--   • actually used by the trained model                -->
+    <!--   • present in the original CSV                       -->
+    <!-- are shown. Date-derived cols (time_index, year,       -->
+    <!-- month) are never shown — they come from a date picker.-->
+    <!-- ══════════════════════════════════════════════════════ -->
     <div id="predict" class="hidden animate-fade-in space-y-8">
-        
+
+        <!-- What the model uses — transparent info box -->
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-6">
-            <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-4">📖 Reference Data (Sample)</h3>
-            <p class="text-sm text-gray-500 mb-4">Use these values as a guide for what to enter below.</p>
-            
+            <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-3">
+                🎯 What This Model Uses
+            </h3>
+
+            <div class="flex flex-wrap gap-2 mb-4">
+                {% for col in feature_columns %}
+                <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium">
+                    {{ col }}
+                </span>
+                {% endfor %}
+                {% if needs_date_input %}
+                {% for col in auto_date_cols %}
+                <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full text-sm font-medium" title="Auto-computed from date picker">
+                    {{ col }} <span class="text-xs">(auto)</span>
+                </span>
+                {% endfor %}
+                {% endif %}
+            </div>
+
+            {% if needs_date_input %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                <span class="font-semibold text-blue-600 dark:text-blue-400">Blue</span> = you enter these.
+                <span class="font-semibold text-gray-500">Grey (auto)</span> = computed from the date picker, never entered manually.
+            </p>
+            {% endif %}
+
+            <!-- Reference rows from dataset -->
+            <h4 class="text-sm font-bold text-gray-600 dark:text-gray-300 mt-5 mb-2">Sample rows from your dataset:</h4>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
                     <thead class="bg-gray-50 dark:bg-gray-700 text-xs uppercase font-bold">
-                        <tr>
-                            {% for col in feature_columns %}
-                                <th class="px-4 py-2">{{ col }}</th>
-                            {% endfor %}
-                        </tr>
+                        <tr>{% for col in feature_columns %}<th class="px-4 py-2">{{ col }}</th>{% endfor %}</tr>
                     </thead>
                     <tbody>
                         {% for row in reference_data %}
                         <tr class="border-b dark:border-gray-700">
                             {% for col in feature_columns %}
-                                <td class="px-4 py-2">
-                                    {% for key, val in row.items %}
-                                        {% if key == col %}{{ val }}{% endif %}
-                                    {% endfor %}
-                                </td>
+                            <td class="px-4 py-2">
+                                {% for key, val in row.items %}{% if key == col %}{{ val }}{% endif %}{% endfor %}
+                            </td>
                             {% endfor %}
                         </tr>
                         {% endfor %}
@@ -176,66 +194,151 @@
             </div>
         </div>
 
-        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-xl p-8 text-white">
-            <h2 class="text-3xl font-bold mb-2 text-center">🚀 Predict Future Value</h2>
-            <p class="text-blue-100 mb-8 text-center">Enter the details below to get an instant prediction.</p>
-            
-            <form action="{% url 'predict' dataset_id %}" method="post" class="bg-white p-8 rounded-xl shadow-lg text-gray-800">
+        <!-- The actual prediction form -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-xl p-8">
+            <h2 class="text-3xl font-bold text-white mb-2 text-center">🚀 Make a Prediction</h2>
+            <p class="text-blue-100 text-center mb-8">
+                Fill in the <strong>{{ feature_columns|length }}</strong> feature{{ feature_columns|length|pluralize }} your model was trained on.
+                {% if needs_date_input %}Time-based columns are filled automatically from the date picker.{% endif %}
+            </p>
+
+            <form action="{% url 'predict' dataset_id %}" method="post"
+                  class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
                 {% csrf_token %}
-                
+
+                <!-- DATE PICKER — only when model has date-derived features -->
+                {% if needs_date_input %}
+                <div class="mb-8 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-700">
+                    <div class="flex items-start gap-3">
+                        <span class="text-2xl">📅</span>
+                        <div class="flex-1">
+                            <label class="block text-sm font-bold text-blue-800 dark:text-blue-200 mb-1">
+                                Prediction Date
+                                <span class="font-normal text-blue-600 dark:text-blue-300">
+                                    — used to auto-compute
+                                    <strong>{{ auto_date_cols|join:", " }}</strong>
+                                </span>
+                            </label>
+                            <input type="date" name="predict_date"
+                                class="w-full px-4 py-2 border border-blue-300 dark:border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-gray-700 dark:text-white">
+                            <p class="text-xs text-blue-500 dark:text-blue-400 mt-1">
+                                Leave blank to use today. You do <strong>not</strong> need to type {{ auto_date_cols|join:" / " }} manually.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- USER INPUT FIELDS — only original CSV columns that survived training -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {% for col in feature_columns %}
                     <div>
-                        <label class="block text-sm font-bold mb-2 capitalize">{{ col }}</label>
-                        
-                        {% for key, type in feature_types.items %}
-                            {% if key == col %}
-                                <input 
-                                    type="{% if type == 'number' %}number{% else %}text{% endif %}" 
-                                    name="{{ col }}" 
-                                    step="any"
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-100"
-                                    placeholder="Enter {{ col }}..."
-                                    required
-                                >
-                            {% endif %}
-                        {% endfor %}
+                        <label class="block text-sm font-bold mb-1 text-gray-700 dark:text-gray-300 capitalize">
+                            {{ col }}
+                            <span class="ml-1 text-xs font-normal text-gray-400">
+                                {% for key, type in feature_types.items %}{% if key == col %}({{ type }}){% endif %}{% endfor %}
+                            </span>
+                        </label>
+                        {% for key, type in feature_types.items %}{% if key == col %}
+                        <input
+                            type="{% if type == 'number' %}number{% else %}text{% endif %}"
+                            name="{{ col }}"
+                            step="any"
+                            placeholder="Enter {{ col }}"
+                            required
+                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                                   focus:ring-2 focus:ring-blue-500 focus:outline-none
+                                   bg-white dark:bg-gray-700 dark:text-white"
+                        >
+                        {% endif %}{% endfor %}
                     </div>
                     {% endfor %}
                 </div>
 
+                {% if not feature_columns %}
+                <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <p class="text-lg">⚠️ All original features were either dropped during preprocessing or replaced by date-derived features.</p>
+                    <p class="text-sm mt-2">Use the <strong>Trend Forecast</strong> section instead — it only needs a date.</p>
+                </div>
+                {% else %}
                 <div class="mt-8">
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-lg transition transform hover:scale-105 text-lg shadow-lg">
+                    <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg
+                               transition transform hover:scale-105 text-lg shadow-lg">
                         Calculate Prediction ⚡
                     </button>
                 </div>
+                {% endif %}
             </form>
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- TREND FORECAST — date only, zero manual input         -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    {% if has_trend %}
+    <div id="trend" class="hidden animate-fade-in">
+        <div class="bg-gradient-to-r from-teal-600 to-emerald-700 rounded-2xl shadow-xl p-8">
+            <h2 class="text-3xl font-bold text-white mb-2 text-center">📅 Full Trend Forecast</h2>
+            <p class="text-teal-100 text-center mb-1">
+                Date column <strong>{{ date_col }}</strong> was found in your data.
+            </p>
+            <p class="text-teal-200 text-sm text-center mb-8">
+                The model predicts <em>every</em> feature for the chosen date using learned trends,
+                then produces a final <strong>{{ target_col }}</strong> forecast.
+                No manual feature entry needed.
+            </p>
+            <form action="{% url 'predict_future_trend' %}" method="post"
+                  class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
+                {% csrf_token %}
+                <input type="hidden" name="file_path"  value="{{ file_path }}">
+                <input type="hidden" name="model_path" value="{{ model_path }}">
+                <input type="hidden" name="date_col"   value="{{ date_col }}">
+                <input type="hidden" name="target_col" value="{{ target_col }}">
+
+                <div class="mb-6">
+                    <label class="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">
+                        Select Future Date
+                    </label>
+                    <input type="date" name="future_date" required
+                        class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg
+                               focus:ring-2 focus:ring-teal-500 focus:outline-none text-lg
+                               bg-white dark:bg-gray-700 dark:text-white">
+                    <p class="text-xs text-gray-400 mt-2">
+                        All feature values for this date are estimated automatically from historical trends.
+                    </p>
+                </div>
+                <button type="submit"
+                    class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-lg
+                           transition transform hover:scale-105 text-lg shadow-lg">
+                    Forecast for This Date 🔮
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 
 <script>
-    function showSection(id) {
-        // Hide all sections first
-        document.getElementById('visualize').classList.add('hidden');
-        document.getElementById('predict').classList.add('hidden');
-        
-        // Show selected section
-        document.getElementById(id).classList.remove('hidden');
-        
-        // Smooth scroll to it
-        document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+function showSection(id) {
+    ['visualize', 'predict', 'trend'].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.classList.add('hidden');
+    });
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('hidden');
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+}
 </script>
 
 <style>
-    .animate-fade-in {
-        animation: fadeIn 0.5s ease-in-out;
-    }
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+.animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 </style>
 {% endblock %}
