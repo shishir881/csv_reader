@@ -2,13 +2,27 @@
 
 {% block title %}Trend Forecast Result{% endblock %}
 
+{% block breadcrumb %}
+<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div class="max-w-7xl mx-auto px-4 py-2">
+        <nav class="flex text-sm text-gray-500 dark:text-gray-400">
+            <a href="{% url 'dashboard' %}" class="hover:text-blue-600 dark:hover:text-blue-400">Dashboard</a>
+            <span class="mx-2">/</span>
+            {% if dataset %}<span class="text-gray-700 dark:text-gray-200 font-medium">{{ dataset.name }}</span>{% endif %}
+            <span class="mx-2">/</span>
+            <span class="text-gray-700 dark:text-gray-200">Trend Forecast</span>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="flex justify-center items-center min-h-[60vh]">
     <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
         
         <!-- Header -->
         <div class="bg-gradient-to-r from-teal-600 to-emerald-700 p-8 text-center text-white">
-            <h2 class="text-3xl font-bold">🎯 Forecast for {{ future_date }}</h2>
+            <h2 class="text-3xl font-bold">Forecast for {{ future_date }}</h2>
             <p class="mt-2 text-teal-100">AI-Powered Trend Prediction Results</p>
         </div>
 
@@ -23,7 +37,7 @@
             </div>
 
             <!-- Predicted Features -->
-            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">📊 Predicted Features for {{ future_date }}</h3>
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Predicted Features for {{ future_date }}</h3>
             <div class="grid grid-cols-2 gap-3 mb-8">
                 {% for key, val in predicted_features.items %}
                     {% if key != target_col %}
@@ -43,11 +57,13 @@
 
             <!-- Action Buttons -->
             <div class="space-y-3 border-t border-gray-200 dark:border-gray-600 pt-8">
-                <button onclick="window.history.back()" class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition">
-                    ← Try Another Date
-                </button>
-                <a href="{% url 'upload' %}" class="block text-center text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 text-sm py-2">
-                    Return to Datasets
+                {% if dataset_id %}
+                <a href="{% url 'result' dataset_id=dataset_id %}" class="block w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition text-center">
+                    Back to Results
+                </a>
+                {% endif %}
+                <a href="{% url 'dashboard' %}" class="block text-center text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 text-sm py-2">
+                    Return to My Datasets
                 </a>
             </div>
         </div>

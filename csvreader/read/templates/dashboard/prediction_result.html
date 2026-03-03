@@ -2,16 +2,32 @@
 
 {% block title %}Prediction Result{% endblock %}
 
+{% block breadcrumb %}
+<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div class="max-w-7xl mx-auto px-4 py-2">
+        <nav class="flex text-sm text-gray-500 dark:text-gray-400">
+            <a href="{% url 'dashboard' %}" class="hover:text-blue-600 dark:hover:text-blue-400">Dashboard</a>
+            <span class="mx-2">/</span>
+            {% if dataset %}<span class="text-gray-700 dark:text-gray-200 font-medium">{{ dataset.name }}</span>{% endif %}
+            <span class="mx-2">/</span>
+            <span class="text-gray-700 dark:text-gray-200">Prediction</span>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="flex justify-center items-center min-h-[60vh]">
     <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
         
         <div class="bg-green-600 p-8 text-center text-white">
             <h2 class="text-3xl font-bold">Prediction Complete!</h2>
+            {% if target_col %}
+            <p class="mt-2 text-green-100 text-sm">Predicted value for <strong>{{ target_col }}</strong></p>
+            {% endif %}
             <div class="mt-4 text-6xl font-extrabold bg-white/20 inline-block px-8 py-4 rounded-xl backdrop-blur-sm">
                 {{ prediction }}
             </div>
-            <p class="mt-4 text-green-100">Predicted Value</p>
         </div>
 
         <div class="p-8">
@@ -26,10 +42,13 @@
                 {% endfor %}
             </div>
 
-            <div class="mt-8 text-center">
-                <button onclick="window.history.back()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-lg transition">
-                    Make Another Prediction
-                </button>
+            <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+                <a href="{% url 'result' dataset_id=dataset_id %}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition text-center">
+                    Back to Results
+                </a>
+                <a href="{% url 'dashboard' %}" class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-3 px-8 rounded-lg transition text-center">
+                    My Datasets
+                </a>
             </div>
         </div>
 

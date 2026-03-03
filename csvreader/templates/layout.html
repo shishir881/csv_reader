@@ -17,10 +17,7 @@
     {% tailwind_css %}
 
     <style>
-        /* Smooth scrolling */
         html { scroll-behavior: smooth; }
-        
-        /* Smooth color transitions */
         body, nav, div, p, h1, h2, h3, a, button {
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
@@ -31,31 +28,44 @@
     <nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-3 flex items-center">
             
-            <div class="flex items-center space-x-9">
-                <a href="{% url 'upload' %}" class="flex items-center gap-2 group">
+            <div class="flex items-center space-x-6">
+                <!-- Logo -->
+                <a href="{% url 'landing' %}" class="flex items-center gap-2 group">
                     <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold group-hover:bg-blue-700 transition">C</div>
                     <span class="text-xl font-semibold dark:text-gray-200">CSV Reader</span>
                 </a>
 
-                <a href="{% url 'upload' %}" class="flex items-center space-x-1 hover:text-blue-600 dark:hover:text-blue-400 font-medium">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                    <span>Home</span>
-                </a>
+                {% if user.is_authenticated %}
+                <!-- Nav links for logged-in users -->
+                <div class="hidden sm:flex items-center space-x-1">
+                    <a href="{% url 'dashboard' %}" class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium text-sm transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                        <span>My Datasets</span>
+                    </a>
+                    <a href="{% url 'upload' %}" class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium text-sm transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        <span>New Upload</span>
+                    </a>
+                </div>
+                {% endif %}
             </div>
 
             <div class="flex-grow"></div>
 
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-3">
                 
                 {% if user.is_authenticated %}
+                    <span class="hidden sm:inline text-sm text-gray-500 dark:text-gray-400">
+                        Hi, <span class="font-medium text-gray-700 dark:text-gray-200">{{ user.username }}</span>
+                    </span>
                     <form method="post" action="{% url 'logout' %}">
                         {% csrf_token %}
-                        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition shadow-sm">
+                        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600 transition shadow-sm">
                             Logout
                         </button>
                     </form>
                 {% else %}
-                    <a href="{% url 'login' %}" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-blue-600">
+                    <a href="{% url 'login' %}" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-blue-600 transition">
                         Login
                     </a>
                     <a href="{% url 'signup' %}" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition shadow-sm">
@@ -63,12 +73,23 @@
                     </a>
                 {% endif %}
                 
-                <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition text-lg">
+                <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition text-lg" title="Toggle dark mode">
                     🌙
                 </button>
             </div>
         </div>
+
+        {% if user.is_authenticated %}
+        <!-- Mobile nav -->
+        <div class="sm:hidden border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex space-x-4">
+            <a href="{% url 'dashboard' %}" class="text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600">My Datasets</a>
+            <a href="{% url 'upload' %}" class="text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600">New Upload</a>
+        </div>
+        {% endif %}
     </nav>
+
+    <!-- Breadcrumb -->
+    {% block breadcrumb %}{% endblock %}
 
     <div class="flex-grow container mx-auto px-4 py-8">
         {% block content %}{% endblock %}
@@ -76,12 +97,12 @@
 
     <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-6 mt-auto">
         <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-            &copy; 2025 CSV Reader AI.
+            &copy; {% now "Y" %} CSV Reader AI. Analyze any CSV dataset with machine learning.
         </div>
     </footer>
 
     <script>
-        // --- 1. DARK MODE LOGIC ---
+        // Dark mode
         const html = document.documentElement;
         const themeToggle = document.getElementById('themeToggle');
 
@@ -89,7 +110,6 @@
              themeToggle.textContent = html.classList.contains('dark') ? '☀️' : '🌙';
         }
 
-        // Check Storage or System Preference
         if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             html.classList.add('dark');
         } else {
@@ -97,14 +117,12 @@
         }
         updateIcon();
 
-        // Toggle Click
         themeToggle.onclick = () => {
             html.classList.toggle('dark');
             const isDark = html.classList.contains('dark');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
             updateIcon();
         };
-    </script>
     </script>
 </body>
 </html>
