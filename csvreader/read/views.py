@@ -1,4 +1,6 @@
 import json
+import hashlib
+import glob
 import numpy as np
 import pandas as pd
 from django.shortcuts import render, redirect, get_object_or_404
@@ -29,6 +31,43 @@ def _model_paths(dataset_id):
         os.path.join(d, f'model_{dataset_id}.pkl'),
         os.path.join(d, f'model_{dataset_id}_meta.json'),
     )
+
+
+def _compute_data_fingerprint(file_path, target_col):
+    """
+    Create a deterministic fingerprint from CSV content + target column.
+    Same data + same target → same fingerprint → same trained model
+    (because all random_state values are fixed at 42).
+    """
+    h = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        # Read in chunks to handle large files efficiently
+        for chunk in iter(lambda: f.read(8192), b''):
+            h.update(chunk)
+    h.update(target_col.encode('utf-8'))
+    return h.hexdigest()
+
+
+def _find_existing_model_by_fingerprint(fingerprint):
+    """
+    Scan all existing metadata files for a matching fingerprint.
+    Returns the model_path of the existing model if found, else None.
+    """
+    models_dir = os.path.join(settings.MEDIA_ROOT, 'models')
+    if not os.path.isdir(models_dir):
+        return None
+
+    for meta_file in glob.glob(os.path.join(models_dir, '*_meta.json')):
+        try:
+            with open(meta_file) as f:
+                meta = json.load(f)
+            if meta.get('data_fingerprint') == fingerprint:
+                existing_path = meta.get('model_path', '')
+                if os.path.exists(existing_path):
+                    return existing_path
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+    return None
 
 
 def _extract_pipeline_features(pipeline):
@@ -190,7 +229,20 @@ def train_model_view(request, dataset_id, target_col):
         # ── 8. Save model + metadata ─────────────────────────
         model_path, meta_path = _model_paths(dataset_id)
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
-        joblib.dump(best_model, model_path)
+
+        # Deduplicate: compute fingerprint and check for existing identical model
+        fingerprint = _compute_data_fingerprint(dataset.file.path, target_col)
+        existing_model_path = _find_existing_model_by_fingerprint(fingerprint)
+
+        if existing_model_path and existing_model_path != model_path:
+            # Identical model already exists — reuse it, skip saving duplicate
+            model_path = existing_model_path
+            print(f"  ♻️  Reusing existing model → {existing_model_path}")
+            print(f"     (same data + same target = identical model, skipping save)")
+        else:
+            # No duplicate found — save the new model
+            joblib.dump(best_model, model_path)
+            print(f"  model saved → {model_path}")
 
         meta = {
             'target_col':          target_col,
@@ -208,6 +260,8 @@ def train_model_view(request, dataset_id, target_col):
             'has_trend':           date_col is not None and engineer.reference_date is not None,
             'trend_freq':          engineer.trend_freq,
             'reference_date':      str(engineer.reference_date) if engineer.reference_date else None,
+            # Fingerprint for deduplication
+            'data_fingerprint':    fingerprint,
         }
         with open(meta_path, 'w') as f:
             json.dump(meta, f, indent=2)
