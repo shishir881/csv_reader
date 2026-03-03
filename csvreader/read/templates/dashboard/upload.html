@@ -2,6 +2,18 @@
 
 {% block title %}Upload Dataset{% endblock %}
 
+{% block breadcrumb %}
+<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div class="max-w-7xl mx-auto px-4 py-2">
+        <nav class="flex text-sm text-gray-500 dark:text-gray-400">
+            <a href="{% url 'dashboard' %}" class="hover:text-blue-600 dark:hover:text-blue-400">Dashboard</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-700 dark:text-gray-200">Upload</span>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="flex justify-center items-center min-h-[60vh]">
     <div class="w-full max-w-lg bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
